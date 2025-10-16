@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from projects.models import Project, Contributor
+from projects.models import Project, Contributor, Issue, Comment
 
 User = get_user_model()
 
@@ -39,3 +39,51 @@ class ProjectModelTest(TestCase):
         )
         self.assertEqual(contributor.permission, 'AUTHOR')
         self.assertEqual(str(contributor), 'testuser (Chef de projet - SoftDesk Backend)')
+
+    def test_issue_creation(self):
+        project = Project.objects.create(
+            title="SoftDesk API",
+            description="Test API Project",
+            type="BACK_END",
+            author_user=self.user
+        )
+        issue = Issue.objects.create(
+            title="Bug login",
+            description="Erreur lors de la connexion",
+            tag="BUG",
+            priority="HIGH",
+            project=project,
+            author_user=self.user,
+            assignee_user=self.user
+        )
+        self.assertEqual(issue.status, "TODO")
+        self.assertEqual(str(issue), "[SoftDesk API] Bug login (BUG)")
+    
+    def test_comment_creation(self):
+        project = Project.objects.create(
+            title="SoftDesk API",
+            description="Test projet pour commentaires",
+            type="BACK_END",
+            author_user=self.user
+        )
+        issue = Issue.objects.create(
+            title="Erreur d’affichage",
+            description="Le dashboard plante sur mobile",
+            tag="BUG",
+            priority="MEDIUM",
+            project=project,
+            author_user=self.user,
+            assignee_user=self.user
+        )
+        comment = Comment.objects.create(
+            description="Oui, j’ai aussi rencontré ce bug.",
+            author_user=self.user,
+            issue=issue
+        )
+        self.assertEqual(comment.author_user.username, "testuser")
+        self.assertEqual(comment.issue.title, "Erreur d’affichage")
+        self.assertTrue(comment.uuid)  # Vérifie qu’un UUID est bien généré
+        self.assertEqual(
+            str(comment),
+            f"Comment {comment.uuid} by testuser on Erreur d’affichage"
+        )

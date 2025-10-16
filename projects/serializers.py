@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from projects.models import Project, Contributor
+from projects.models import Project, Contributor, Issue, Comment
 
 class ContributorSerializer(serializers.ModelSerializer):
     # En lecture seule, pour éviter de modifier l'utilisateur depuis une requête POST.
@@ -28,3 +28,45 @@ class ProjectSerializer(serializers.ModelSerializer):
             'created_time',
             'contributors',
         ]
+
+class IssueSerializer(serializers.ModelSerializer):
+    author_username = serializers.ReadOnlyField(source='author_user.username')
+    assignee_username = serializers.ReadOnlyField(source='assignee_user.username')
+    project_title = serializers.ReadOnlyField(source='project.title')
+
+    class Meta:
+        model = Issue
+        fields = [
+            'id',
+            'title',
+            'description',
+            'tag',
+            'priority',
+            'status',
+            'author_user',
+            'author_username',
+            'assignee_user',
+            'assignee_username',
+            'project',
+            'project_title',
+            'created_time',
+        ]
+        read_only_fields = ['author_user', 'created_time']
+
+class CommentSerializer(serializers.ModelSerializer):
+    author_username = serializers.ReadOnlyField(source='author_user.username')
+    issue_title = serializers.ReadOnlyField(source='issue.title')
+
+    class Meta:
+        model = Comment
+        fields = [
+            'id',
+            'uuid',
+            'description',
+            'author_user',
+            'author_username',
+            'issue',
+            'issue_title',
+            'created_time',
+        ]
+        read_only_fields = ['author_user', 'created_time', 'uuid']
