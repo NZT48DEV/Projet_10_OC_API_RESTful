@@ -48,24 +48,34 @@ Elle met en œuvre une **authentification JWT**, un **système de permissions pe
 
 ```
 📦 10 Projet - Créez une API sécurisée RESTful
-├── .github/                  # CI/CD & surveillance (Dependabot, GitHub Actions)
+├── .env/                               # Environnement virtuel local (non versionné)
+│
+├── .github/                            # CI/CD & surveillance (Dependabot, GitHub Actions)
 │   ├── workflows/
 │   │   └── tests.yml
 │   └── dependabot.yml
 │
 ├── django-rest-api/                    # Code source principal de l'API
-│   ├── manage.py
+│   ├── .pytest_cache/                  # Cache de tests Pytest (ignoré)
+│   ├── api/                            # (si présent, endpoints ou utils)
 │   ├── config/                         # Configuration principale Django
-│   ├── users/                          # Gestion des utilisateurs & RGPD
+│   ├── cours/                          # Dossier personnel (hors projet)
 │   ├── projects/                       # Projets, contributeurs, issues, commentaires
-│   ├── pytest.ini                      # Configuration des tests
-│   ├── requirements.txt                # Dépendances Python du projet
-│   └── SoftDesk_Progress_Report.md     # Journal d'avancement
+│   ├── users/                          # Gestion des utilisateurs & RGPD
+│   ├── .env                            # Variables d’environnement du projet Django
+│   ├── db.sqlite3                      # Base de données locale (ignorée)
+│   ├── manage.py                       # Point d’entrée Django
+│   └── requirements.txt                # Dépendances Python du projet
 │
-├── .gitignore                # Exclusions Git (env, cache, migrations...)
-├── README.md                 # Présentation du projet
-├── requirements.txt          # Copie pour CI/CD (GitHub Actions)
-└── .env/                     # Environnement virtuel local (non versionné)
+├── .flake8                             # Configuration du linter Flake8
+├── .gitignore                          # Exclusions Git (env, cache, migrations, etc.)
+├── .pre-commit-config.yaml             # Configuration des hooks Pre-commit
+├── .vscode/                            # Paramètres VSCode (non versionnés)
+├── pyproject.toml                      # Configuration pour Black, Isort, etc.
+├── pytest.ini                          # Configuration Pytest (tests unitaires)
+├── README.md                           # Présentation du projet
+├── requirements.txt                    # Copie pour CI/CD (GitHub Actions)
+└── SoftDesk_Progress_Report.md         # Journal d’avancement du projet
 ```
 
 ---
