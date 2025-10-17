@@ -1,8 +1,8 @@
 from rest_framework import viewsets
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 
 from .models import User
-from .permissions import IsSelfOrReadOnly
+from .permissions import IsNotAuthenticated, IsSelfOrReadOnly
 from .serializers import UserSerializer
 
 
@@ -24,10 +24,9 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == "create":
-            return [AllowAny()]
+            # Empêche la création de compte via un token déjà actif
+            return [IsNotAuthenticated()]
         elif self.action in ["update", "partial_update", "destroy"]:
-            # Authentification obligatoire
-            # + vérification qu’il s’agit du bon user
             return [IsAuthenticated(), IsSelfOrReadOnly()]
         return [IsAuthenticated()]
 

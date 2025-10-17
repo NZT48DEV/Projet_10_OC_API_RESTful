@@ -77,3 +77,19 @@ class TestUserPermissions:
         assert response.status_code == 403
         self.bob.refresh_from_db()
         assert self.bob.can_be_contacted is False
+
+    def test_authenticated_user_cannot_create_another_user(self):
+        """Un utilisateur connecté ne peut pas créer un autre compte."""
+        self.client.force_authenticate(user=self.alice)
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "new_user",
+                "password": "pass1234",
+                "age": 25,
+                "can_be_contacted": True,
+                "can_data_be_shared": True,
+            },
+            format="json",
+        )
+        assert response.status_code == 403
