@@ -44,6 +44,32 @@ Elle met en œuvre une **authentification JWT**, un **système de permissions pe
 
 ---
 
+## 🧩 Structure du projet
+
+```
+📦 10 Projet - Créez une API sécurisée RESTful
+├── .github/                  # CI/CD & surveillance (Dependabot, GitHub Actions)
+│   ├── workflows/
+│   │   └── tests.yml
+│   └── dependabot.yml
+│
+├── django-rest-api/                    # Code source principal de l'API
+│   ├── manage.py
+│   ├── config/                         # Configuration principale Django
+│   ├── users/                          # Gestion des utilisateurs & RGPD
+│   ├── projects/                       # Projets, contributeurs, issues, commentaires
+│   ├── pytest.ini                      # Configuration des tests
+│   ├── requirements.txt                # Dépendances Python du projet
+│   └── SoftDesk_Progress_Report.md     # Journal d'avancement
+│
+├── .gitignore                # Exclusions Git (env, cache, migrations...)
+├── README.md                 # Présentation du projet
+├── requirements.txt          # Copie pour CI/CD (GitHub Actions)
+└── .env/                     # Environnement virtuel local (non versionné)
+```
+
+---
+
 ## 🔐 Authentification
 
 L’API utilise **JSON Web Token (JWT)** pour gérer l’authentification et la sécurité des endpoints.  
@@ -60,10 +86,10 @@ Chaque utilisateur peut obtenir un token via les endpoints `/api/token/` et `/ap
 
 ---
 
-## 🧩 Installation rapide
+## ⚙️ Installation rapide
 
 ```bash
-git clone https://github.com/<TON_UTILISATEUR>/<TON_REPO>.git
+git clone https://github.com/NZT48DEV/Projet_10_OC_API_RESTful.git
 cd django-rest-api
 python -m venv .env
 source .env/bin/activate   # ou .env\Scripts\activate sous Windows
