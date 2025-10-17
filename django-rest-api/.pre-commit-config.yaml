@@ -1,0 +1,42 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        args: [--line-length=79]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+  
+  - repo: https://github.com/myint/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        args:
+          [
+            --in-place,
+            --remove-all-unused-imports,
+            --remove-unused-variables,
+            -r,
+            .
+          ]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        args: [--max-line-length=79]
+        additional_dependencies:
+          - flake8-bugbear
+          - flake8-comprehensions
+
+  - repo: local
+    hooks:
+      - id: run-pytest
+        name: Run Pytest before commit
+        entry: bash -c "pytest -v"
+        language: system
+        pass_filenames: false
