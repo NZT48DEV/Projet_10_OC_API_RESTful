@@ -16,7 +16,7 @@ flake8-comprehensions==3.17.0
 git-filter-repo==2.47.0
 identify==2.6.15
 iniconfig==2.1.0
-isort==6.1.0
+isort==7.0.0
 mccabe==0.7.0
 mypy_extensions==1.1.0
 nodeenv==1.9.1
