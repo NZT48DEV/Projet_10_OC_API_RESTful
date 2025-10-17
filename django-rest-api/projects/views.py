@@ -1,14 +1,13 @@
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-
 from projects.models import Comment, Contributor, Issue, Project
+from projects.permissions import IsAuthorAndContributor
 from projects.serializers import (
     CommentSerializer,
     ContributorSerializer,
     IssueSerializer,
     ProjectSerializer,
 )
-from projects.permissions import IsAuthorAndContributor
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
 
 
 class ProjectViewSet(viewsets.ModelViewSet):

@@ -37,6 +37,7 @@ Elle met en œuvre une **authentification JWT**, un **système de permissions pe
 - **Django 5.2**
 - **Django REST Framework (DRF)**
 - **djangorestframework-simplejwt**
+- **python-decouple**
 - **Pytest**
 - **Pre-commit** (Black, Isort, Flake8)
 - **GitHub Actions** (tests automatiques)
@@ -59,7 +60,6 @@ Elle met en œuvre une **authentification JWT**, un **système de permissions pe
 │   ├── .pytest_cache/                  # Cache de tests Pytest (ignoré)
 │   ├── api/                            # (si présent, endpoints ou utils)
 │   ├── config/                         # Configuration principale Django
-│   ├── cours/                          # Dossier personnel (hors projet)
 │   ├── projects/                       # Projets, contributeurs, issues, commentaires
 │   ├── users/                          # Gestion des utilisateurs & RGPD
 │   ├── .env                            # Variables d’environnement du projet Django
@@ -80,6 +80,44 @@ Elle met en œuvre une **authentification JWT**, un **système de permissions pe
 
 ---
 
+## ⚙️ Installation rapide
+
+```bash
+git clone https://github.com/NZT48DEV/Projet_10_OC_API_RESTful.git
+cd django-rest-api
+python -m venv .env
+source .env/bin/activate   # ou .env\Scripts\activate sous Windows
+pip install -r requirements.txt
+python manage.py migrate
+```
+
+---
+
+## 🧰 Configuration de la clé secrète Django
+
+Pour sécuriser l’application, la clé Django (`SECRET_KEY`) est stockée dans un fichier `.env` non versionné.
+
+### 🔹 Étapes de configuration :
+
+1. **Générer et récupérer une clé secrète Django :**
+   ```bash
+   python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+   ```
+
+2. **Créer le fichier `.env` dans `django-rest-api/` :**
+   ```bash
+   SECRET_KEY=django-insecure-<votre_cle_secrete>
+   DEBUG=True
+   ALLOWED_HOSTS=127.0.0.1,localhost
+   ```
+
+3. **Lancer le serveur :**
+   ```bash
+   python manage.py runserver
+   ```
+
+---
+
 ## 🔐 Authentification
 
 L’API utilise **JSON Web Token (JWT)** pour gérer l’authentification et la sécurité des endpoints.  
@@ -93,20 +131,6 @@ Chaque utilisateur peut obtenir un token via les endpoints `/api/token/` et `/ap
 - **CI/CD** automatisé via GitHub Actions.
 - Surveillance des dépendances avec **Dependabot**.
 - Conformité **RGPD** : gestion de l’âge, droit à l’oubli, et consentement explicite.
-
----
-
-## ⚙️ Installation rapide
-
-```bash
-git clone https://github.com/NZT48DEV/Projet_10_OC_API_RESTful.git
-cd django-rest-api
-python -m venv .env
-source .env/bin/activate   # ou .env\Scripts\activate sous Windows
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
-```
 
 ---
 

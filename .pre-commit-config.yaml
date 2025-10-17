@@ -37,6 +37,7 @@ repos:
     hooks:
       - id: run-pytest
         name: Run Pytest before commit
-        entry: bash -c "pytest -v"
+        entry: bash -c "cd django-rest-api && pytest -v"
         language: system
         pass_filenames: false
+

@@ -1,6 +1,5 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-
 from projects.models import Comment, Contributor, Issue, Project
 
 User = get_user_model()

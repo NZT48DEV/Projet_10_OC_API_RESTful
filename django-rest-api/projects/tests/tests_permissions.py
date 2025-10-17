@@ -1,7 +1,7 @@
 import pytest
-from rest_framework.test import APIClient
 from django.urls import reverse
-from projects.models import Project, Issue, Comment, Contributor
+from projects.models import Comment, Contributor, Issue, Project
+from rest_framework.test import APIClient
 from users.models import User
 
 

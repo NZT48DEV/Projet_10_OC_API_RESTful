@@ -2,13 +2,19 @@ name: Run Django tests
 
 on:
   push:
-    branches: [ main, feature/* ]
+    branches:
+      - master
+      - "feature/**"
   pull_request:
-    branches: [ main ]
+    branches:
+      - master
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       # 1️⃣ Clone le dépôt

@@ -1,6 +1,5 @@
-from rest_framework import serializers
-
 from projects.models import Comment, Contributor, Issue, Project
+from rest_framework import serializers
 
 
 class ContributorSerializer(serializers.ModelSerializer):

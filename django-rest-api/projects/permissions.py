@@ -1,5 +1,6 @@
 from rest_framework import permissions
 
+
 class IsAuthorOrReadOnly(permissions.BasePermission):
     """
     Permission personnalisée :
@@ -11,10 +12,12 @@ class IsAuthorOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
         return obj.author == request.user
-    
+
+
 class IsContributor(permissions.BasePermission):
     """
-    Permission : l'utilisateur doit être contributeur du projet lié à la ressource.
+    Permission :
+    l'utilisateur doit être contributeur du projet lié à la ressource.
     """
 
     def has_permission(self, request, view):
@@ -23,7 +26,7 @@ class IsContributor(permissions.BasePermission):
         Exemple : /projects/ ou /issues/
         """
         return request.user and request.user.is_authenticated
-    
+
     def has_object_permission(self, request, view, obj):
         """
         Vérifie l'accès à une ressource spécifique (Project, Issue, Comment)
@@ -33,16 +36,17 @@ class IsContributor(permissions.BasePermission):
         # Si c'est un projet -> vérifier les contributeurs
         if hasattr(obj, "contributors"):
             return user in obj.contributors.all()
-        
+
         # Si c'est une issue -> vérifier le projet lié
         if hasattr(obj, "project"):
             return user in obj.project.contributors.all()
-        
+
         # Si c'est un commentaire -> vérifier via issue.project
         if hasattr(obj, "issue"):
             return user in obj.issue.project.contributors.all()
-        
-        return False 
+
+        return False
+
 
 class IsAuthorAndContributor(permissions.BasePermission):
     """
@@ -59,7 +63,9 @@ class IsAuthorAndContributor(permissions.BasePermission):
             if hasattr(obj, "project"):
                 return obj.project.contributors.filter(user=user).exists()
             if hasattr(obj, "issue"):
-                return obj.issue.project.contributors.filter(user=user).exists()
+                return obj.issue.project.contributors.filter(
+                    user=user
+                ).exists()
             if hasattr(obj, "contributors"):  # Projet
                 return obj.contributors.filter(user=user).exists()
             return False
