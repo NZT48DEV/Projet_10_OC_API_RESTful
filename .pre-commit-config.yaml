@@ -37,7 +37,8 @@ repos:
     hooks:
       - id: run-pytest
         name: Run Pytest before commit
-        entry: bash -c "cd django-rest-api && pytest -v"
+        entry: bash -c "pytest -v --maxfail=1 --disable-warnings -q"
         language: system
         pass_filenames: false
+
 
