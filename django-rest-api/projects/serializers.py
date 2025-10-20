@@ -3,12 +3,14 @@ from rest_framework import serializers
 
 
 class ContributorSerializer(serializers.ModelSerializer):
-    user_id = serializers.ReadOnlyField(source="user.id")
-    username = serializers.ReadOnlyField(source="user.username")
+    is_author = serializers.SerializerMethodField()
 
     class Meta:
         model = Contributor
-        fields = ["id", "user_id", "username", "project", "permission", "role"]
+        fields = ["id", "user", "project", "permission", "role", "is_author"]
+
+    def get_is_author(self, obj):
+        return obj.permission == "AUTHOR"
 
 
 class ProjectSerializer(serializers.ModelSerializer):

@@ -9,14 +9,8 @@ from .serializers import UserSerializer
 
 class UserViewSet(viewsets.ModelViewSet):
     """
-    VueSet gérant les opérations CRUD sur les utilisateurs.
-
-    Fonctionnalités :
-    - Création de compte ouverte à tous (users non authentifiés uniquement).
-    - Consultation et modification réservées aux utilisateurs connectés.
-    - Chaque utilisateur ne peut consulter ou modifier que son propre compte.
-    - Les administrateurs (superusers) ont accès à tous les utilisateurs.
-    - Suppression autorisée uniquement par l’utilisateur sur son propre compte.
+    (Documentation interne)
+    Gère les opérations CRUD sur les utilisateurs.
     """
 
     serializer_class = UserSerializer
@@ -24,29 +18,32 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-
+        # 🔐 L'utilisateur ne voit que son propre compte.
+        # Les autres IDs (même existants) renverront 404 pour éviter toute
+        # fuite.
         if user.is_superuser:
             return User.objects.all()
-
-        if user.is_authenticated:
-            return User.objects.all()
-
-        return User.objects.none()
+        return User.objects.filter(id=user.id)
 
     def get_permissions(self):
+        # Création autorisée uniquement pour les utilisateurs non connectés.
         if self.action == "create":
-            # Empêche la création de compte si déjà connecté
             return [IsNotAuthenticated()]
+        # Modification / suppression → réservé à soi-même.
         elif self.action in ["update", "partial_update", "destroy"]:
             return [IsAuthenticated(), IsSelfOrReadOnly()]
+        # Lecture → nécessite d’être authentifié.
         return [IsAuthenticated()]
 
     def perform_destroy(self, instance):
         """
         Supprime uniquement si l'utilisateur supprime son propre compte.
+        Renvoie 404 pour toute tentative de suppression d'un autre utilisateur.
         """
-        if self.request.user != instance:
-            raise PermissionDenied(
-                "Vous ne pouvez supprimer que votre propre compte."
-            )
+        if (
+            self.request.user != instance
+            and not self.request.user.is_superuser
+        ):
+            # Même stratégie : on ne révèle pas si l'utilisateur cible existe.
+            raise PermissionDenied("Action non autorisée.")
         instance.delete()

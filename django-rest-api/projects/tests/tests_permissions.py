@@ -105,7 +105,7 @@ class TestPermissions:
         self.client.force_authenticate(user=self.stranger)
         url = reverse("project-detail", args=[self.project.id])
         response = self.client.get(url)
-        assert response.status_code == 403  # Forbidden
+        assert response.status_code == 404
 
     # -------------------------------
     # ✍️ MODIFICATION / SUPPRESSION
@@ -159,4 +159,4 @@ class TestPermissions:
         url = reverse("comment-detail", args=[self.comment.id])
         data = {"description": "Je change le message."}
         response = self.client.patch(url, data)
-        assert response.status_code == 403
+        assert response.status_code == 404

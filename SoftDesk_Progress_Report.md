@@ -60,55 +60,77 @@ Dans un environnement de développement professionnel, ces éléments ne seraien
 ---
 
 ### 🧱 Module **Projects / Contributors / Issues / Comments**
-- [x] Création de l’application **`projects`**.
-- [x] Implémentation et tests des modèles :
-  - **`Project`** : ressource principale avec titre, description, type, auteur.
-  - **`Contributor`** : lien entre utilisateur et projet, gestion des rôles (`AUTHOR` / `CONTRIBUTOR`).
-  - **`Issue`** : gestion des tickets (`BUG` / `FEATURE` / `TASK`) avec priorités, statuts et assignation.
-  - **`Comment`** : gestion des discussions liées aux issues.
-- [x] Création des **serializers** correspondants (`ProjectSerializer`, `ContributorSerializer`, `IssueSerializer`, `CommentSerializer`).
-- [x] Mise en place des **ViewSets** pour chaque ressource, avec filtrage dynamique selon le rôle et le projet.
-- [x] Configuration des **routes API** :
-  - `/api/projects/`
-  - `/api/projects/contributors/`
-  - `/api/projects/issues/`
-  - `/api/projects/comments/`
-- [x] Tests complets dans Postman :
-  - Création d’un projet → l’auteur devient automatiquement contributeur.
-  - Création et récupération d’issues liées à un projet.
-  - Ajout et consultation de commentaires sur une issue.
+
+#### 🔹 Renforcement des ViewSets
+- [x] Refonte complète des **ViewSets** (`Project`, `Contributor`, `Issue`, `Comment`) pour garantir une gestion cohérente des droits d’accès.
+- [x] Ajout d’un filtrage dynamique dans chaque `get_queryset()` :
+  - Les utilisateurs ne voient **que les objets liés aux projets auxquels ils participent**.
+  - Les superutilisateurs conservent un accès global pour la supervision.
+- [x] Vérification de la cohérence des liens entre modèles :
+  - Une `Issue` ne peut être créée **que si l’utilisateur est contributeur du projet**.
+  - Un `Comment` ne peut être ajouté **que sur une issue appartenant à un projet où l’utilisateur est contributeur**.
+- [x] L’auteur d’un projet est automatiquement ajouté comme **contributeur** à sa création.
+
+#### 🔹 Sécurisation des actions
+- [x] Implémentation stricte des règles d’accès :
+  - **Lecture** : autorisée aux contributeurs et à l’auteur du projet.
+  - **Création** : réservée aux contributeurs du projet.
+  - **Modification / Suppression** : autorisée uniquement à l’auteur de la ressource.
+- [x] Vérification de la cohérence entre les permissions et la base de données :
+  - Aucun utilisateur non contributeur ne peut interagir avec une ressource externe.
+  - Les contributeurs ne peuvent pas modifier les ressources des autres.
+
+#### 🔹 Prévention de l’énumération d’utilisateurs (User Enumeration)
+- [x] Modification du `UserViewSet` :
+  - Les utilisateurs ne peuvent **voir que leur propre profil**.
+  - Toute tentative d’accès à un autre utilisateur renvoie désormais un **HTTP 404 Not Found**  
+    (au lieu de 403) pour **masquer l’existence d’autres comptes**.
+- [x] Même stratégie appliquée sur les autres ressources sensibles (`Projects`, `Issues`, `Comments`).
+
+#### 🔹 Mise en conformité RGPD
+- [x] Vérification du **droit à l’oubli** : suppression réelle des données utilisateur dans la base.
+- [x] Renforcement des règles d’accès utilisateur :
+  - Un utilisateur connecté ne peut pas créer un autre compte.
+  - Un utilisateur ne peut modifier ou supprimer **que son propre compte**.
+  - Les administrateurs conservent un accès complet à tous les utilisateurs.
+
+#### 🔹 Tests & validations
+- [x] Exécution complète des tests unitaires et de permission (`pytest`).
+- [x] Ajustement des assertions suite à l’implémentation du **comportement 404 sécurisé** :
+  - Tests mis à jour pour refléter la logique de sécurité renforcée.
+- [x] Tous les tests valides : `pytest -v` → **22 tests réussis sur 22 ✅**
 
 ---
 
-### 🛡️ Permissions personnalisées & conformité RGPD
-- [x] Implémentation de la permission **`IsAuthorAndContributor`** :
-  - Les contributeurs peuvent lire les projets, issues et commentaires.
-  - Seul l’auteur d’une ressource peut la modifier ou la supprimer.
-- [x] Implémentation des permissions **`IsSelfOrReadOnly`** et **`IsNotAuthenticated`** dans `users/permissions.py`.
-- [x] Vérification RGPD :
-  - Un utilisateur peut consulter, modifier ou supprimer uniquement **son propre compte**.
-  - Les données supprimées sont effectivement retirées de la base.
-- [x] Ajout des tests unitaires dédiés (`tests_permissions.py`) validant :
-  - la suppression, la modification et la création selon le statut de l’utilisateur ;
-  - la conformité au RGPD (`401`, `403`, `204`, `200` selon le cas).
-- [x] Validation complète : `pytest -v` → **tous les tests passent ✅**
+### 🛡️ Permissions personnalisées
+- [x] Mise à jour des permissions :
+  - **`IsAuthorAndContributor`** : permet lecture aux contributeurs, écriture à l’auteur.
+  - **`IsAuthorOrProjectContributorReadOnly`** : gère les droits précis sur `Issue` et `Comment`.
+- [x] Refactor des permissions pour éliminer les redondances et simplifier la maintenance.
+- [x] Centralisation de la logique d’accès dans `projects/permissions.py`.
+
+---
+
+### 🍪 Interface DRF & confidentialité
+- [x] Suppression de l’affichage automatique des docstrings dans l’interface **Browsable API** (DRF)  
+  via surcharge de la méthode `get_view_description()` → empêche toute fuite d’informations sur les endpoints.
+- [x] Uniformisation du comportement visuel de l’interface DRF :
+  - Formulaires affichés mais protégés côté backend.
+  - Retour systématique `403` ou `404` selon le rôle et le contexte.
 
 ---
 
 ### 🧰 Qualité de code & automatisation
-- [x] Installation et configuration de **Pre-commit** avec les hooks :
-  - **Black**, **Isort**, **Autoflake**, **Flake8**.
-- [x] Ajout d’un hook personnalisé pour exécuter automatiquement `pytest` avant commit.
-- [x] Tous les tests et hooks passent avant validation (`black`, `isort`, `flake8`, `pytest`) ✅
+- [x] Validation complète du pipeline qualité :
+  - `black`, `isort`, `autoflake`, `flake8`, et `pytest` passent avant chaque commit.
+- [x] Vérification automatique des tests unitaires via le hook `run-pytest` avant validation Git.
+- [x] Résolution des problèmes liés au hook `pre-commit` (configuration `.yaml` régénérée).
+- [x] Formatage et linting systématique avant chaque push ✅
 
 ---
 
 ### 🚀 Prochaines étapes
-- [ ] Implémenter les **permissions fines sur les Issues et Comments** :
-  - Lecture autorisée à tous les contributeurs.
-  - Modification/Suppression réservées à l’auteur.
-- [ ] Implémenter la **pagination** sur les endpoints `projects`, `issues` et `comments`.
-- [ ] Ajouter les **tests d’intégration API** (JWT + permissions).
-- [ ] Rédiger la **documentation finale** et le **rapport de soutenance**.
-
----
+- [ ] Ajouter les **tests d’intégration API complets (Postman)** couvrant JWT + permissions.
+- [ ] Implémenter la **pagination** pour les endpoints `projects`, `issues`, et `comments`.
+- [ ] Finaliser la **documentation technique** (routes, permissions, schéma de base de données).
+- [ ] Préparer la **soutenance** et le **rapport de présentation du projet**.

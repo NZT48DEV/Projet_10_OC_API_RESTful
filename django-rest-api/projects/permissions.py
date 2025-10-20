@@ -73,3 +73,36 @@ class IsAuthorAndContributor(permissions.BasePermission):
         # Écriture : autorisée uniquement pour l’auteur
         author_attr = getattr(obj, "author_user", None)
         return author_attr == user
+
+
+class IsAuthorOrProjectContributorReadOnly(permissions.BasePermission):
+    """
+    Règles d'accès pour les issues et les commentaires :
+    - Lecture (GET, HEAD, OPTIONS) :
+    autorisée pour tous les contributeurs du projet.
+    - Modification et suppression :
+    uniquement autorisées à l'auteur de la ressource.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        # Si la requête est une lecture → autoriser pour tous les contributeurs
+        if request.method in permissions.SAFE_METHODS:
+            # Pour un commentaire, le projet se trouve via obj.issue.project
+            if hasattr(obj, "issue"):
+                return (
+                    user in obj.issue.project.contributors.all()
+                    or user == obj.issue.project.author_user
+                )
+            # Pour une issue, le projet est directement lié
+            if hasattr(obj, "project"):
+                return (
+                    user in obj.project.contributors.all()
+                    or user == obj.project.author_user
+                )
+            return False
+
+        # Pour les méthodes d’écriture → uniquement l’auteur
+        author_field = getattr(obj, "author_user", None)
+        return author_field == user

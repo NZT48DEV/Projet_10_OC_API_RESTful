@@ -1,9 +1,16 @@
 [flake8]
-max-line-length = 88
+max-line-length = 79
+extend-ignore =
+    E203,
+    W503,
+    W504
 exclude =
     .git,
     __pycache__,
     */migrations/*,
-    env/,
-    .venv/,
-    .env/
+    venv,
+    .venv,
+    config/asgi.py,
+    config/wsgi.py
+max-complexity = 10
+select = E,F,W,C90

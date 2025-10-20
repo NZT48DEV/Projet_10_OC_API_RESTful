@@ -42,7 +42,7 @@ class TestUserPermissions:
         """Un utilisateur ne peut pas supprimer le compte d'un autre."""
         self.client.force_authenticate(user=self.alice)
         response = self.client.delete(f"/api/users/{self.bob.id}/")
-        assert response.status_code == 403
+        assert response.status_code == 404
         assert User.objects.filter(id=self.bob.id).exists()
 
     def test_anonymous_cannot_delete_any_user(self):
@@ -74,7 +74,7 @@ class TestUserPermissions:
             {"can_be_contacted": True},
             format="json",
         )
-        assert response.status_code == 403
+        assert response.status_code == 404
         self.bob.refresh_from_db()
         assert self.bob.can_be_contacted is False
 
