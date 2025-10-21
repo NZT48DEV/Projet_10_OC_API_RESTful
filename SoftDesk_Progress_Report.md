@@ -98,7 +98,7 @@ Dans un environnement de développement professionnel, ces éléments ne seraien
 - [x] Exécution complète des tests unitaires et de permission (`pytest`).
 - [x] Ajustement des assertions suite à l’implémentation du **comportement 404 sécurisé** :
   - Tests mis à jour pour refléter la logique de sécurité renforcée.
-- [x] Tous les tests valides : `pytest -v` → **22 tests réussis sur 22 ✅**
+- [x] Tous les tests valides : `pytest -v` → **34 tests réussis sur 34 ✅**
 
 ---
 

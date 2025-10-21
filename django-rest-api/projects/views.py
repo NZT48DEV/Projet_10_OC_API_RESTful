@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from projects.models import Comment, Contributor, Issue, Project
 from projects.permissions import (
     IsAuthorAndContributor,
@@ -9,19 +10,13 @@ from projects.serializers import (
     IssueSerializer,
     ProjectSerializer,
 )
-from rest_framework import viewsets
-from rest_framework.exceptions import PermissionDenied
+from rest_framework import serializers, status, viewsets
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    """
-    Gestion des projets :
-    - Lecture : autorisée aux contributeurs et à l’auteur.
-    - Création : ouverte à tout utilisateur authentifié.
-    - Modification/Suppression : réservées à l’auteur du projet.
-    """
-
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated, IsAuthorAndContributor]
 
@@ -31,23 +26,52 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return Project.objects.all()
         return Project.objects.filter(contributors__user=user).distinct()
 
+    def list(self, request, *args, **kwargs):
+        user = request.user
+
+        if not Project.objects.filter(contributors__user=user).exists():
+            return Response(
+                {
+                    "detail": (
+                        "Vous n'avez encore aucun projet, "
+                        "mais vous pouvez en créer un ci-dessous."
+                    )
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return super().list(request, *args, **kwargs)
+
     def perform_create(self, serializer):
-        project = serializer.save(author_user=self.request.user)
-        Contributor.objects.create(
-            user=self.request.user,
-            project=project,
-            permission="AUTHOR",
-            role="Auteur et Contributeur du projet",
-        )
+        title = serializer.validated_data.get("title")
+        user = self.request.user
+
+        if Project.objects.filter(
+            title__iexact=title, author_user=user
+        ).exists():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Un projet avec ce titre existe déjà pour cet auteur."
+                    )
+                }
+            )
+
+        try:
+            project = serializer.save(author_user=user)
+            Contributor.objects.create(
+                user=user,
+                project=project,
+                permission="AUTHOR",
+                role="Auteur et Contributeur du projet",
+            )
+        except IntegrityError:
+            raise ValidationError(
+                {"detail": "Ce projet existe déjà dans la base de données."}
+            )
 
 
 class ContributorViewSet(viewsets.ModelViewSet):
-    """
-    Gestion des contributeurs :
-    - Lecture : accessible aux contributeurs et à l’auteur du projet.
-    - Création / suppression : réservées à l’auteur du projet.
-    """
-
     serializer_class = ContributorSerializer
     permission_classes = [IsAuthenticated, IsAuthorAndContributor]
 
@@ -55,34 +79,125 @@ class ContributorViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_superuser:
             return Contributor.objects.all()
-        return Contributor.objects.filter(project__contributors__user=user)
+        return Contributor.objects.filter(
+            project__contributors__user=user
+        ).distinct()
+
+    def list(self, request, *args, **kwargs):
+        user = request.user
+        if not Contributor.objects.filter(
+            project__contributors__user=user
+        ).exists():
+            raise PermissionDenied(
+                "Accès refusé : vous devez être contributeur d’un projet "
+                "pour voir cette ressource."
+            )
+        return super().list(request, *args, **kwargs)
+
+    def get_serializer(self, *args, **kwargs):
+        serializer_class = self.get_serializer_class()
+        kwargs.setdefault('context', self.get_serializer_context())
+        serializer = serializer_class(*args, **kwargs)
+
+        if not isinstance(serializer, serializers.ListSerializer):
+            if hasattr(serializer.Meta, "validators"):
+                serializer.Meta.validators = []
+        return serializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=False)
+
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        project = serializer.validated_data.get("project")
+        user_to_add = serializer.validated_data.get("user")
+
+        if project.author_user != request.user:
+            raise PermissionDenied(
+                "Seul l’auteur du projet peut ajouter un contributeur."
+            )
+
+        if Contributor.objects.filter(
+            project=project, user=user_to_add
+        ).exists():
+            return Response(
+                {
+                    "detail": (
+                        f"L'utilisateur '{user_to_add.username}' "
+                        f"est déjà contributeur du projet '{project.title}'."
+                    ),
+                    "project_url": (
+                        f"http://127.0.0.1:8000/api/projects/{project.id}/"
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+
+        return Response(
+            {
+                "message": (
+                    f"L'utilisateur '{user_to_add.username}' "
+                    "a bien été ajouté comme contributeur "
+                    f"au projet '{project.title}'."
+                ),
+                "contributor": serializer.data,
+            },
+            status=status.HTTP_201_CREATED,
+            headers=headers,
+        )
 
     def perform_create(self, serializer):
-        """Seul l’auteur du projet peut ajouter un contributeur."""
         project = serializer.validated_data.get("project")
+        user = serializer.validated_data.get("user")
+
         if project.author_user != self.request.user:
             raise PermissionDenied(
                 "Seul l’auteur du projet peut ajouter un contributeur."
             )
+
+        if Contributor.objects.filter(project=project, user=user).exists():
+            raise ValidationError(
+                {"detail": "Cet utilisateur est déjà contributeur du projet."}
+            )
+
         serializer.save()
 
-    def perform_destroy(self, instance):
-        """Seul l’auteur du projet peut retirer un contributeur."""
-        if instance.project.author_user != self.request.user:
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        if instance.project.author_user != request.user:
             raise PermissionDenied(
                 "Seul l’auteur du projet peut retirer un contributeur."
             )
-        instance.delete()
+        if instance.user == instance.project.author_user:
+            raise ValidationError(
+                {"detail": "L’auteur du projet ne peut pas être retiré."}
+            )
+
+        username = instance.user.username
+        project_name = instance.project.title
+
+        self.perform_destroy(instance)
+        return Response(
+            {
+                "message": (
+                    f"L'utilisateur '{username}' "
+                    f"a bien été retiré du projet '{project_name}'."
+                ),
+                "status": "success",
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class IssueViewSet(viewsets.ModelViewSet):
-    """
-    Gestion des issues (tickets) :
-    - Lecture : autorisée aux contributeurs du projet.
-    - Création : autorisée uniquement aux contributeurs du projet.
-    - Modification/Suppression : réservées à l’auteur de l’issue.
-    """
-
     serializer_class = IssueSerializer
     permission_classes = [
         IsAuthenticated,
@@ -104,20 +219,67 @@ class IssueViewSet(viewsets.ModelViewSet):
         is_contributor = project.contributors.filter(user=user).exists()
         if not (is_contributor or project.author_user == user):
             raise PermissionDenied(
-                "Vous devez être contributeur du projet pour créer une issue."
+                "Vous devez être contributeur du projet "
+                "pour créer une issue."
+            )
+
+        assignee_user = serializer.validated_data.get("assignee_user")
+        if (
+            assignee_user
+            and not project.contributors.filter(user=assignee_user).exists()
+        ):
+            raise ValidationError(
+                {
+                    "detail": (
+                        "L'utilisateur assigné doit être "
+                        "contributeur du projet."
+                    )
+                }
             )
 
         serializer.save(author_user=user)
 
+    def update(self, request, *args, **kwargs):
+        kwargs.pop("partial", False)
+        instance = self.get_object()
+        user = request.user
+        project = instance.project
+
+        if (
+            not project.contributors.filter(user=user).exists()
+            and user != project.author_user
+        ):
+            raise PermissionDenied(
+                "Vous devez être contributeur du projet "
+                "pour modifier cette issue."
+            )
+
+        if instance.author_user == user:
+            return super().update(request, *args, **kwargs)
+
+        if instance.assignee_user == user:
+            if set(request.data.keys()) == {"status"}:
+                instance.status = request.data["status"]
+                instance.save()
+                return Response(
+                    self.get_serializer(instance).data,
+                    status=status.HTTP_200_OK,
+                )
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Vous ne pouvez modifier que le champ "
+                        "'status' de cette issue."
+                    )
+                }
+            )
+
+        raise PermissionDenied(
+            "Seul l’auteur ou l’utilisateur assigné peut modifier cette issue."
+        )
+
 
 class CommentViewSet(viewsets.ModelViewSet):
-    """
-    Gestion des commentaires :
-    - Lecture : autorisée aux contributeurs du projet.
-    - Création : autorisée pour les contributeurs du projet.
-    - Modification/Suppression : réservée à l’auteur du commentaire.
-    """
-
     serializer_class = CommentSerializer
     permission_classes = [
         IsAuthenticated,
@@ -132,16 +294,39 @@ class CommentViewSet(viewsets.ModelViewSet):
             issue__project__contributors__user=user
         ).distinct()
 
+    def list(self, request, *args, **kwargs):
+        user = request.user
+        if not Project.objects.filter(contributors__user=user).exists():
+            raise PermissionDenied(
+                "Accès refusé : "
+                "vous devez être contributeur d’un projet "
+                "pour voir cette ressource."
+            )
+        return super().list(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         issue = serializer.validated_data.get("issue")
         project = issue.project
         user = self.request.user
+        description = serializer.validated_data.get("description")
 
-        # Vérifie que l’utilisateur est contributeur ou auteur du projet
         is_contributor = project.contributors.filter(user=user).exists()
         if not (is_contributor or project.author_user == user):
             raise PermissionDenied(
                 "Vous devez être contributeur du projet pour commenter."
+            )
+
+        if Comment.objects.filter(
+            issue=issue,
+            author_user=user,
+            description__iexact=description,
+        ).exists():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Un commentaire identique existe déjà sur cette issue."
+                    )
+                }
             )
 
         serializer.save(author_user=user)

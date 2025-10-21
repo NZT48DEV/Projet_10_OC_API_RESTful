@@ -23,7 +23,7 @@ class ProjectModelTest(TestCase):
             author_user=self.user,
         )
         self.assertEqual(project.title, "API SoftDesk")
-        self.assertEqual(str(project), "API SoftDesk")
+        self.assertEqual(str(project), "API SoftDesk (BACK_END)")
 
     def test_contributor_creation(self):
         project = Project.objects.create(
@@ -85,7 +85,7 @@ class ProjectModelTest(TestCase):
         )
         self.assertEqual(comment.author_user.username, "testuser")
         self.assertEqual(comment.issue.title, "Erreur d’affichage")
-        self.assertTrue(comment.uuid)  # Vérifie qu’un UUID est bien généré
+        self.assertTrue(comment.uuid)
         self.assertEqual(
             str(comment),
             f"Comment {comment.uuid} by testuser on Erreur d’affichage",

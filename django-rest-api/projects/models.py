@@ -18,12 +18,18 @@ class Project(models.Model):
     author_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="projects_authored",  # ✅ renommé pour cohérence
+        related_name="projects_authored",
     )
     created_time = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        unique_together = ("title", "author_user")
+        ordering = ["-created_time"]
+        verbose_name = "Projet"
+        verbose_name_plural = "Projets"
+
     def __str__(self):
-        return self.title
+        return f"{self.title} ({self.type})"
 
 
 class Contributor(models.Model):
@@ -35,18 +41,21 @@ class Contributor(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="projects_contributed",  # ✅ renommé pour cohérence
+        related_name="projects_contributed",
     )
-
     project = models.ForeignKey(
-        Project, on_delete=models.CASCADE, related_name="contributors"
+        "projects.Project",
+        on_delete=models.CASCADE,
+        related_name="contributors",
     )
-
     permission = models.CharField(max_length=20, choices=PERMISSION_CHOICES)
     role = models.CharField(max_length=255)
 
     class Meta:
         unique_together = ("user", "project")
+        verbose_name = "Contributeur"
+        verbose_name_plural = "Contributeurs"
+        ordering = ["project", "user"]
 
     def __str__(self):
         return f"{self.user.username} ({self.role} - {self.project.title})"
@@ -90,9 +99,15 @@ class Issue(models.Model):
         related_name="assigned_issues",
     )
     project = models.ForeignKey(
-        Project, on_delete=models.CASCADE, related_name="issues"
+        "projects.Project", on_delete=models.CASCADE, related_name="issues"
     )
     created_time = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("title", "project", "assignee_user")
+        ordering = ["-created_time"]
+        verbose_name = "Issue"
+        verbose_name_plural = "Issues"
 
     def __str__(self):
         return f"[{self.project.title}] {self.title} ({self.tag})"
@@ -107,13 +122,20 @@ class Comment(models.Model):
         related_name="comments",
     )
     issue = models.ForeignKey(
-        Issue, on_delete=models.CASCADE, related_name="comments"
+        "projects.Issue",
+        on_delete=models.CASCADE,
+        related_name="comments",
     )
     created_time = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        unique_together = ("description", "issue", "author_user")
+        ordering = ["-created_time"]
+        verbose_name = "Commentaire"
+        verbose_name_plural = "Commentaires"
+
     def __str__(self):
         return (
-            f"Comment {self.uuid} "
-            f"by {self.author_user.username} "
+            f"Comment {self.uuid} by {self.author_user.username} "
             f"on {self.issue.title}"
         )
