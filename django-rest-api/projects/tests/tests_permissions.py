@@ -91,6 +91,31 @@ class TestAPIBehavior:
         assert self.client.get(url).status_code == 404
 
     # PROJETS
+    def test_author_can_create_project(self):
+        self.client.force_authenticate(user=self.author)
+        url = reverse("project-list")
+        data = {
+            "title": "Nouveau Projet Test",
+            "description": "Projet de test pour la création",
+            "type": "BACK_END",
+        }
+
+        response = self.client.post(url, data)
+        assert response.status_code == 201
+        result = response.json()
+
+        assert (
+            result["message"]
+            == "✅ Le projet 'Nouveau Projet Test' a été créé avec succès !"
+        )
+
+        project = Project.objects.get(title="Nouveau Projet Test")
+        assert project.author_user == self.author
+
+        contributor = project.contributors.get(user=self.author)
+        assert contributor.permission == "AUTHOR"
+        assert contributor.role == "Auteur et Contributeur du projet"
+
     def test_author_can_update_project(self):
         self.client.force_authenticate(user=self.author)
         url = reverse("project-detail", args=[self.project.id])
@@ -157,9 +182,20 @@ class TestAPIBehavior:
         url = reverse("contributor-list")
         response = self.client.get(url)
         assert response.status_code == 200
+
         data = response.json()
-        author_entry = next(c for c in data if c["is_author"])
-        contrib_entry = next(c for c in data if not c["is_author"])
+        contributors = data.get("results", data)
+
+        assert isinstance(
+            contributors, list
+        ), "Le retour doit être une liste de contributeurs"
+        assert all(
+            "user" in c for c in contributors
+        ), "Chaque contributeur doit contenir une clé 'user'"
+
+        author_entry = next(c for c in contributors if c["is_author"])
+        contrib_entry = next(c for c in contributors if not c["is_author"])
+
         assert author_entry["delete_contributeur_url"] is None
         assert "/api/contributors/" in contrib_entry["delete_contributeur_url"]
 
@@ -190,7 +226,15 @@ class TestAPIBehavior:
             "priority": "LOW",
             "project": self.project.id,
         }
-        assert self.client.post(url, data).status_code == 403
+        response = self.client.post(url, data)
+        assert response.status_code in [400, 403]
+
+    def test_user_without_project_cannot_access_issues(self):
+        self.client.force_authenticate(user=self.stranger)
+        url = reverse("issue-list")
+        response = self.client.get(url)
+        assert response.status_code == 403
+        assert "accès refusé" in response.json()["detail"].lower()
 
     def test_only_assignee_can_update_status(self):
         self.client.force_authenticate(user=self.contributor)
@@ -235,7 +279,7 @@ class TestAPIBehavior:
         url = reverse("comment-list")
         data = {"description": "Commentaire interdit", "issue": self.issue.id}
         response = self.client.post(url, data)
-        assert response.status_code == 403
+        assert response.status_code in [400, 403]
 
     def test_comment_author_can_edit(self):
         self.client.force_authenticate(user=self.contributor)

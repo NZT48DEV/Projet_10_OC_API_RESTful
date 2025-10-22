@@ -70,6 +70,25 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 {"detail": "Ce projet existe déjà dans la base de données."}
             )
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+
+        project = serializer.instance
+        return Response(
+            {
+                "message": (
+                    f"✅ Le projet '{project.title}' "
+                    "a été créé avec succès !"
+                ),
+                "project": serializer.data,
+            },
+            status=status.HTTP_201_CREATED,
+            headers=headers,
+        )
+
 
 class ContributorViewSet(viewsets.ModelViewSet):
     serializer_class = ContributorSerializer
@@ -206,11 +225,24 @@ class IssueViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+
         if user.is_superuser:
             return Issue.objects.all()
+
         return Issue.objects.filter(
             project__contributors__user=user
         ).distinct()
+
+    def list(self, request, *args, **kwargs):
+        user = request.user
+
+        if not Project.objects.filter(contributors__user=user).exists():
+            raise PermissionDenied(
+                "Accès refusé : vous devez être contributeur d’un projet "
+                "pour voir cette ressource."
+            )
+
+        return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -219,8 +251,7 @@ class IssueViewSet(viewsets.ModelViewSet):
         is_contributor = project.contributors.filter(user=user).exists()
         if not (is_contributor or project.author_user == user):
             raise PermissionDenied(
-                "Vous devez être contributeur du projet "
-                "pour créer une issue."
+                "Vous devez être contributeur du projet pour créer une issue."
             )
 
         assignee_user = serializer.validated_data.get("assignee_user")
@@ -238,6 +269,27 @@ class IssueViewSet(viewsets.ModelViewSet):
             )
 
         serializer.save(author_user=user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+
+        issue = serializer.instance
+        assignee_user = issue.assignee_user
+
+        message = f"✅ Issue '{issue.title}' créée avec succès" + (
+            f" et assignée à '{assignee_user.username}' !"
+            if assignee_user
+            else " !"
+        )
+
+        data = {"message": message}
+        data.update(serializer.data)
+
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
         kwargs.pop("partial", False)
@@ -268,14 +320,15 @@ class IssueViewSet(viewsets.ModelViewSet):
             raise ValidationError(
                 {
                     "detail": (
-                        "Vous ne pouvez modifier que le champ "
-                        "'status' de cette issue."
+                        "Vous ne pouvez modifier que le champ 'status' "
+                        "de cette issue."
                     )
                 }
             )
 
         raise PermissionDenied(
-            "Seul l’auteur ou l’utilisateur assigné peut modifier cette issue."
+            "Seul l’auteur ou l’utilisateur assigné "
+            "peut modifier cette issue."
         )
 
 
@@ -296,12 +349,26 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         user = request.user
+
         if not Project.objects.filter(contributors__user=user).exists():
             raise PermissionDenied(
-                "Accès refusé : "
-                "vous devez être contributeur d’un projet "
+                "Accès refusé : vous devez être contributeur d’un projet "
                 "pour voir cette ressource."
             )
+
+        if (
+            not Issue.objects.filter(project__contributors__user=user).exists()
+            and not Issue.objects.filter(project__author_user=user).exists()
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Aucune issue n’a encore été créée pour vos projets."
+                    )
+                },
+                status=status.HTTP_200_OK,
+            )
+
         return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -330,3 +397,26 @@ class CommentViewSet(viewsets.ModelViewSet):
             )
 
         serializer.save(author_user=user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+
+        comment = serializer.instance
+        issue = comment.issue
+
+        message = (
+            f"💬 Commentaire ajouté avec succès à l’issue '{issue.title}' !"
+        )
+        issue_url = f"http://127.0.0.1:8000/api/issues/{issue.id}/"
+
+        data = {
+            "message": message,
+            "issue_url": issue_url,
+        }
+        data.update(serializer.data)
+
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)

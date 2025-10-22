@@ -142,6 +142,8 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
 }
 
 AUTH_USER_MODEL = "users.User"
@@ -153,4 +155,6 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 
-LOGIN_REDIRECT_URL = '/api/'
+LOGIN_REDIRECT_URL = "/api/projects/"
+
+LOGOUT_REDIRECT_URL = "/api-auth/login/"

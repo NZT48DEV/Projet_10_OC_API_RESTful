@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from projects.models import Comment, Contributor, Issue, Project
 from rest_framework import serializers
 
@@ -10,11 +11,6 @@ class ContributorSerializer(serializers.ModelSerializer):
         queryset=User.objects.filter(is_superuser=False)
     )
     username = serializers.ReadOnlyField(source="user.username")
-    user_url = serializers.HyperlinkedRelatedField(
-        source="user",
-        view_name="user-detail",
-        read_only=True,
-    )
     project_url = serializers.HyperlinkedRelatedField(
         source="project",
         view_name="project-detail",
@@ -29,7 +25,6 @@ class ContributorSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "username",
-            "user_url",
             "project",
             "project_url",
             "permission",
@@ -180,7 +175,9 @@ class IssueSerializer(serializers.ModelSerializer):
         if request and not request.user.is_superuser:
             user = request.user
 
-            self.fields["project"].queryset = Project.objects.all()
+            self.fields["project"].queryset = Project.objects.filter(
+                contributors__user=user
+            ).distinct()
 
             self.fields["assignee_user"].queryset = User.objects.filter(
                 projects_contributed__project__contributors__user=user
@@ -216,4 +213,10 @@ class CommentSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
 
         if request and not request.user.is_superuser:
-            self.fields["issue"].queryset = Issue.objects.all()
+            user = request.user
+            from projects.models import Issue  # éviter import circulaire
+
+            self.fields["issue"].queryset = Issue.objects.filter(
+                Q(project__contributors__user=user)
+                | Q(project__author_user=user)
+            ).distinct()
