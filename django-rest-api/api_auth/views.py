@@ -3,7 +3,7 @@ from django.shortcuts import redirect, render
 from rest_framework import generics, status
 from rest_framework.response import Response
 from users.models import User
-from users.serializers import UserSerializer
+from users.serializers import UserDetailSerializer
 
 from .permissions import IsNotAuthenticated
 
@@ -15,16 +15,18 @@ class RegisterView(generics.CreateAPIView):
     """
 
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = UserDetailSerializer
     permission_classes = [IsNotAuthenticated]
 
     def get(self, request, *args, **kwargs):
+        """Empêche l'accès GET à la création d'utilisateur."""
         return Response(
             {"detail": "Utilisez POST pour créer un nouveau compte."},
             status=status.HTTP_200_OK,
         )
 
     def create(self, request, *args, **kwargs):
+        """Crée un compte utilisateur et renvoie un message clair."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -45,6 +47,8 @@ class RegisterView(generics.CreateAPIView):
 
 
 class CustomLoginView(LoginView):
+    """Affiche la page de connexion DRF, redirige si déjà logué."""
+
     template_name = "rest_framework/login.html"
     redirect_authenticated_user = True
 
@@ -58,6 +62,8 @@ class CustomLoginView(LoginView):
 
 
 class CustomLogoutView(LogoutView):
+    """Déconnecte l'utilisateur et redirige vers la page de login."""
+
     def dispatch(self, request, *args, **kwargs):
         super().dispatch(request, *args, **kwargs)
         return redirect("/api-auth/login/")
