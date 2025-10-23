@@ -15,4 +15,3 @@ exclude =
     config/wsgi.py
 max-complexity = 10
 select = E,F,W,C90
-per-file-ignores = django-rest-api/config/settings.py:E501

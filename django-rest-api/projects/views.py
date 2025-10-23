@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from projects.models import Comment, Contributor, Issue, Project
 from projects.pagination import ContributorProjectPagination
@@ -21,13 +22,14 @@ from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from utils.cache_tools import safe_delete_pattern
 
 
 # -----------------------------
 #  PROJETS
 # -----------------------------
 class ProjectViewSet(viewsets.ModelViewSet):
-    """Optimisation via select_related et prefetch_related."""
+    """Optimisation via cache, select_related et prefetch_related."""
 
     permission_classes = [IsAuthenticated, IsAuthorAndContributor]
 
@@ -40,14 +42,22 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        cache_key = f"user_projects_{user.id}"
+
+        cached_projects = cache.get(cache_key)
+        if cached_projects is not None:
+            return cached_projects
+
         qs = (
             Project.objects.select_related("author_user")
             .prefetch_related("contributors__user")
             .distinct()
         )
-        if user.is_superuser:
-            return qs
-        return qs.filter(contributors__user=user)
+        if not user.is_superuser:
+            qs = qs.filter(contributors__user=user)
+
+        cache.set(cache_key, qs, timeout=600)
+        return qs
 
     def list(self, request, *args, **kwargs):
         user = request.user
@@ -66,12 +76,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         title = serializer.validated_data.get("title")
         user = self.request.user
+
         if Project.objects.filter(
             title__iexact=title, author_user=user
         ).exists():
             raise ValidationError(
                 {"detail": "Un projet avec ce titre existe déjà."}
             )
+
         try:
             project = serializer.save(author_user=user)
             Contributor.objects.create(
@@ -80,6 +92,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 permission="AUTHOR",
                 role="Auteur et Contributeur du projet",
             )
+            cache.delete(f"user_projects_{user.id}")
         except IntegrityError:
             raise ValidationError(
                 {"detail": "Ce projet existe déjà dans la base."}
@@ -105,7 +118,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        user = request.user
         self.perform_destroy(instance)
+        cache.delete(f"user_projects_{user.id}")
         return Response(
             status=status.HTTP_204_NO_CONTENT, content_type="application/json"
         )
@@ -183,7 +198,7 @@ class ContributorViewSet(viewsets.ModelViewSet):
 #  ISSUES
 # -----------------------------
 class IssueViewSet(viewsets.ModelViewSet):
-    """Optimisation via select_related sur relations uniques."""
+    """Optimisation via cache fin et select_related sur relations uniques."""
 
     permission_classes = [
         IsAuthenticated,
@@ -199,12 +214,25 @@ class IssueViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        project_id = self.request.query_params.get("project")
+        cache_key = f"issues_user_{user.id}_project_{project_id or 'all'}"
+
+        cached_issues = cache.get(cache_key)
+        if cached_issues is not None:
+            return cached_issues
+
         qs = Issue.objects.select_related(
             "project", "project__author_user", "author_user", "assignee_user"
         ).distinct()
-        if user.is_superuser:
-            return qs
-        return qs.filter(project__contributors__user=user)
+
+        if not user.is_superuser:
+            qs = qs.filter(project__contributors__user=user)
+
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+
+        cache.set(cache_key, qs, timeout=600)
+        return qs
 
     def list(self, request, *args, **kwargs):
         user = request.user
@@ -218,12 +246,14 @@ class IssueViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         project = serializer.validated_data.get("project")
+
         is_contrib = project.contributors.filter(user=user).exists()
         if not (is_contrib or project.author_user == user):
             raise PermissionDenied(
                 "Accès refusé : vous devez être contributeur "
-                "d’un projet pour voir cette ressource."
+                "d’un projet pour créer une issue."
             )
+
         assignee = serializer.validated_data.get("assignee_user")
         if (
             assignee
@@ -232,7 +262,11 @@ class IssueViewSet(viewsets.ModelViewSet):
             raise ValidationError(
                 {"detail": "L'utilisateur assigné doit être contributeur."}
             )
+
         serializer.save(author_user=user)
+
+        # ✅ Invalidation du cache des issues (compatible tous backends)
+        safe_delete_pattern(f"issues_user_{user.id}_project_*")
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
