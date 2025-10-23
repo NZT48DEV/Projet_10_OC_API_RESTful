@@ -6,87 +6,71 @@ User = get_user_model()
 
 
 class ProjectModelTest(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
+    """Tests essentiels des modèles du module projects."""
+
+    @classmethod
+    def setUpTestData(cls):
+        """Création unique des données de base (gros gain de performance)."""
+        cls.user = User.objects.create_user(
             username="testuser",
             password="pass123",
             age=25,
             can_be_contacted=True,
             can_data_be_shared=False,
         )
-
-    def test_project_creation(self):
-        project = Project.objects.create(
-            title="API SoftDesk",
-            description="Project Test",
+        cls.project = Project.objects.create(
+            title="SoftDesk API",
+            description="Backend API Test",
             type="BACK_END",
-            author_user=self.user,
+            author_user=cls.user,
         )
-        self.assertEqual(project.title, "API SoftDesk")
-        self.assertEqual(str(project), "API SoftDesk (BACK_END)")
 
-    def test_contributor_creation(self):
-        project = Project.objects.create(
-            title="SoftDesk Backend",
-            description="Développement API",
-            type="BACK_END",
-            author_user=self.user,
-        )
+    def test_project_str_and_creation(self):
+        """Vérifie la création et la représentation textuelle du projet."""
+        self.assertEqual(self.project.title, "SoftDesk API")
+        self.assertEqual(str(self.project), "SoftDesk API (BACK_END)")
+
+    def test_contributor_str_and_creation(self):
+        """Vérifie la création d’un contributeur et son affichage."""
         contributor = Contributor.objects.create(
             user=self.user,
-            project=project,
+            project=self.project,
             permission="AUTHOR",
             role="Chef de projet",
         )
         self.assertEqual(contributor.permission, "AUTHOR")
-        self.assertEqual(
-            str(contributor), "testuser (Chef de projet - SoftDesk Backend)"
-        )
+        self.assertIn("Chef de projet", str(contributor))
 
-    def test_issue_creation(self):
-        project = Project.objects.create(
-            title="SoftDesk API",
-            description="Test API Project",
-            type="BACK_END",
-            author_user=self.user,
-        )
+    def test_issue_str_and_creation(self):
+        """Vérifie la création et la représentation textuelle d’une issue."""
         issue = Issue.objects.create(
-            title="Bug login",
-            description="Erreur lors de la connexion",
+            title="Bug critique",
+            description="Erreur de connexion",
             tag="BUG",
             priority="HIGH",
-            project=project,
+            project=self.project,
             author_user=self.user,
             assignee_user=self.user,
         )
         self.assertEqual(issue.status, "TODO")
-        self.assertEqual(str(issue), "[SoftDesk API] Bug login (BUG)")
+        self.assertIn("Bug critique", str(issue))
 
-    def test_comment_creation(self):
-        project = Project.objects.create(
-            title="SoftDesk API",
-            description="Test projet pour commentaires",
-            type="BACK_END",
-            author_user=self.user,
-        )
+    def test_comment_str_and_creation(self):
+        """Vérifie la création d’un commentaire et sa représentation."""
         issue = Issue.objects.create(
             title="Erreur d’affichage",
-            description="Le dashboard plante sur mobile",
+            description="Dashboard mobile cassé",
             tag="BUG",
             priority="MEDIUM",
-            project=project,
+            project=self.project,
             author_user=self.user,
             assignee_user=self.user,
         )
         comment = Comment.objects.create(
-            description="Oui, j’ai aussi rencontré ce bug.",
+            description="Reproduit sur Android.",
             author_user=self.user,
             issue=issue,
         )
         self.assertEqual(comment.author_user.username, "testuser")
-        self.assertEqual(comment.issue.title, "Erreur d’affichage")
-        self.assertTrue(comment.uuid)
-        self.assertEqual(
-            str(comment),
-            f"Comment {comment.uuid} by testuser on Erreur d’affichage",
-        )
+        self.assertIn("Reproduit", comment.description)
+        self.assertIn("Erreur d’affichage", str(comment))

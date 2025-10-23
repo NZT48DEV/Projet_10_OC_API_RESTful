@@ -36,7 +36,7 @@ class RegisterView(generics.CreateAPIView):
         return Response(
             {
                 "message": (
-                    f"✅ Le compte utilisateur '{user.username}' "
+                    f"Le compte utilisateur '{user.username}' "
                     "a été créé avec succès !"
                 ),
                 "user": serializer.data,

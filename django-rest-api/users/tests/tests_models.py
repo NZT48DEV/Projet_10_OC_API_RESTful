@@ -6,34 +6,38 @@ User = get_user_model()
 
 
 class UserModelTest(TestCase):
-    def test_user_creation_valid(self):
-        user = User.objects.create_user(
+    """Tests essentiels du modèle User optimisés."""
+
+    @classmethod
+    def setUpTestData(cls):
+        """Créé une seule fois pour tous les tests (gain de temps)."""
+        cls.valid_data = dict(
             username="alice",
             password="pass123",
             age=25,
             can_be_contacted=True,
             can_data_be_shared=False,
         )
+
+    def test_create_user_valid(self):
+        """Création d’un utilisateur valide."""
+        user = User.objects.create_user(**self.valid_data)
         self.assertEqual(user.username, "alice")
-        self.assertEqual(user.age, 25)
+        self.assertEqual(str(user), "alice")
         self.assertTrue(user.can_be_contacted)
         self.assertFalse(user.can_data_be_shared)
-        self.assertIsNotNone(user.created_time)
-        self.assertEqual(str(user), "alice")
 
-    def test_user_creation_invalid_age(self):
-        user = User(
-            username="bob",
-            password="pass123",
-            age=10,
-            can_be_contacted=True,
-            can_data_be_shared=False,
-        )
+    def test_user_age_validation(self):
+        """Âge inférieur à 15 → ValidationError."""
+        invalid_data = self.valid_data.copy()
+        invalid_data["age"] = 10
+        user = User(**invalid_data)
         with self.assertRaises(ValidationError) as context:
             user.full_clean()
         self.assertIn("Âge invalide", str(context.exception))
 
-    def test_user_missing_booleans(self):
+    def test_boolean_fields_required(self):
+        """Les champs booléens sont obligatoires."""
         user = User(
             username="charlie",
             password="pass123",

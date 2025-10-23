@@ -1,16 +1,21 @@
 repos:
+  # 1️⃣ Formatter le code
   - repo: https://github.com/psf/black
     rev: 25.9.0
     hooks:
       - id: black
         args: [--line-length=79]
+        stages: [commit]  # force l'exécution avant les autres
 
+  # 2️⃣ Trier les imports
   - repo: https://github.com/pycqa/isort
     rev: 7.0.0
     hooks:
       - id: isort
         args: ["--profile", "black"]
-  
+        stages: [commit]
+
+  # 3️⃣ Linter (après corrections auto)
   - repo: https://github.com/pycqa/flake8
     rev: 7.3.0
     hooks:
@@ -19,13 +24,14 @@ repos:
         additional_dependencies:
           - flake8-bugbear
           - flake8-comprehensions
+        stages: [commit]
 
+  # 4️⃣ Exécuter les tests unitaires (optionnel, mais propre)
   - repo: local
     hooks:
       - id: run-pytest
         name: Run Pytest before commit
-        entry: bash -c "pytest -v --maxfail=1 --disable-warnings -q"
+        entry: bash -c "pytest --maxfail=1 --disable-warnings -q --reuse-db --nomigrations"
         language: system
         pass_filenames: false
-
-
+        stages: [commit]
