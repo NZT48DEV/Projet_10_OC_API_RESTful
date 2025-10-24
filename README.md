@@ -1,20 +1,19 @@
-# 🛡️ SoftDesk – API REST sécurisée
+
+# 🛡️ SoftDesk – API REST sécurisée avec OAuth2
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
 ![Django](https://img.shields.io/badge/Django-5.2-green?logo=django)
 ![DRF](https://img.shields.io/badge/DRF-3.15-red?logo=django)
-![Tests](https://img.shields.io/badge/tests-automatisés-success?logo=githubactions)
+![OAuth2](https://img.shields.io/badge/Auth-OAuth2-orange?logo=security)
+![Tests](https://img.shields.io/badge/tests-automatisés-success?logo=pytest)
 ![Dependabot](https://img.shields.io/badge/Dependabot-active-brightgreen?logo=dependabot)
 
 ---
 
 ## 📖 Présentation du projet
 
-**SoftDesk** est une **API RESTful sécurisée** développée avec **Django REST Framework**.  
-Elle permet la gestion de **projets collaboratifs** avec un système de **tickets (issues)** et de **commentaires**, dans une architecture claire et maintenable.
-
-Conçue pour être **robuste**, **performante** et **conforme aux standards de sécurité**, cette API illustre les bonnes pratiques de développement back-end moderne :  
-authentification JWT, permissions personnalisées, validations métier, pagination, cache applicatif et tests automatisés.
+**SoftDesk** est une **API RESTful sécurisée** basée sur **OAuth2**, développée avec **Django REST Framework** et **Django OAuth Toolkit**.  
+Elle permet la gestion de **projets collaboratifs**, **issues**, et **commentaires** avec un contrôle d’accès robuste et conforme aux normes de sécurité modernes.
 
 > 🧠 Ce projet a été réalisé dans le cadre de la formation OpenClassrooms *« Développeur d’application Python »*, projet n°10 :  
 > **Créez une API sécurisée RESTful avec Django REST Framework**.
@@ -23,17 +22,18 @@ authentification JWT, permissions personnalisées, validations métier, paginati
 
 ## 🚀 Fonctionnalités principales
 
-- 🔐 **Authentification JWT** (connexion, renouvellement, accès sécurisé)
+- 🔐 **Authentification OAuth2 complète** (`/o/token/`, `/o/revoke_token/`, `/o/authorize/`)
 - 👥 **Gestion des utilisateurs** et conformité **RGPD**
 - 🧱 **Création et gestion de projets collaboratifs**
 - 🧩 **Ajout et gestion de contributeurs**
-- 🐞 **Système de tickets (issues)** avec priorité, statut et assignation
+- 🐞 **Système d’issues (tickets)** avec priorité, statut et assignation
 - 💬 **Commentaires** associés aux issues
 - ⚙️ **Permissions personnalisées** (auteur, contributeur, lecture seule)
-- 🧪 **Tests unitaires automatisés** (Pytest + GitHub Actions)
+- 💾 **Mise en cache granulaire** (par utilisateur et projet)
+- 🧪 **Tests unitaires** (Pytest)
 - 🧰 **Pipeline Pre-commit** (Black, Flake8, Isort)
-- 📦 **Mise en cache** des requêtes fréquentes pour gain de performance
-- 🔍 **Surveillance de sécurité** via **Dependabot**
+- 🧱 **CI/CD GitHub Actions**
+- 🔍 **Surveillance sécurité** via **Dependabot**
 
 ---
 
@@ -43,11 +43,11 @@ authentification JWT, permissions personnalisées, validations métier, paginati
 |------------|---------------|
 | Langage | Python 3.12 |
 | Framework | Django 5.2 |
-| API REST | Django REST Framework (DRF) |
-| Authentification | djangorestframework-simplejwt |
-| Configuration | python-decouple |
+| API REST | Django REST Framework |
+| Authentification | OAuth2 (Django OAuth Toolkit) |
+| Config | python-decouple |
 | Tests | Pytest |
-| Qualité de code | Black • Isort • Flake8 • Autopep8 |
+| Qualité de code | Black • Isort • Flake8 |
 | CI/CD | GitHub Actions |
 | Sécurité | Dependabot |
 
@@ -74,6 +74,8 @@ authentification JWT, permissions personnalisées, validations métier, paginati
 ├── README.md                           # Présentation du projet
 └── SoftDesk_Progress_Report.md         # Journal d’avancement du projet
 ```
+
+---
 
 ---
 
@@ -115,76 +117,94 @@ Pour sécuriser l’application, la clé `SECRET_KEY` est stockée dans un fichi
 
 ---
 
-## 🔒 Authentification JWT
+## 🔐 Authentification OAuth2
 
-L’API utilise le système **JSON Web Token (JWT)** pour gérer les connexions sécurisées.
+SoftDesk implémente le **grant type "Resource Owner Password Credentials"**, idéal pour les clients de confiance comme Postman.
 
-Endpoints disponibles :
-- `POST /api/token/` → obtention du token
-- `POST /api/token/refresh/` → renouvellement
-- `GET /api/users/<id_user>/` → accès aux informations personnelles (token requis)
+### 🔸 Étapes d’authentification
 
----
+1. **Créer une application OAuth2** dans l’administration Django :  
+   - `client_type` : Confidential  
+   - `authorization_grant_type` : Password grant  
+   - Copier le `client_id` et `client_secret`.
 
-## 🧪 Qualité et sécurité du code
+2. **Obtenir un token d’accès :**
 
-### 🔹 Pipeline Pre-commit
-Avant chaque commit :
-- **Black** reformate le code (PEP8)
-- **Isort** trie les imports
-- **Flake8** vérifie les erreurs et la complexité
-- **Pytest** exécute les tests automatisés
+   ```bash
+   POST /o/token/
+   Content-Type: application/x-www-form-urlencoded
 
-### 🔹 Intégration continue
-- **GitHub Actions** exécute automatiquement la suite de tests à chaque push.
-- **Dependabot** surveille les dépendances et alerte sur les vulnérabilités.
+   grant_type=password
+   username=<nom_utilisateur>
+   password=<mot_de_passe>
+   client_id=<votre_client_id>
+   client_secret=<votre_client_secret>
+   ```
+
+   → Réponse :
+   ```json
+   {
+       "access_token": "...",
+       "refresh_token": "...",
+       "token_type": "Bearer",
+       "expires_in": 36000
+   }
+   ```
+
+3. **Rafraîchir le token :**
+   ```bash
+   POST /o/token/
+   grant_type=refresh_token
+   refresh_token=<votre_refresh_token>
+   client_id=<client_id>
+   client_secret=<client_secret>
+   ```
+
+4. **Utiliser le token dans Postman :**
+   ```http
+   Authorization: Bearer <access_token>
+   ```
 
 ---
 
 ## ⚡ Optimisations techniques
 
-SoftDesk a été pensé pour offrir des **performances élevées** et une **gestion efficace des ressources** :
+- ⚙️ **select_related / prefetch_related** : requêtes SQL optimisées  
+- 💾 **Cache multi-niveaux** : invalidation automatique après création ou suppression  
+- 🧩 **Transactions atomiques** : cohérence des écritures simultanées  
+- 🔒 **Sécurité avancée** :
+  - Authentification OAuth2 (RFC 6749)
+  - Permissions hiérarchisées
+  - Gestion des sessions et CSRF désactivées sur API pure
+- 🧼 **Qualité & CI/CD** :
+  - Linting (Black, Flake8, Isort)
+  - Tests automatisés (Pytest + OAuth2)
+  - Exécution GitHub Actions à chaque push
 
-### 🧩 Optimisation des requêtes SQL
-- Utilisation de **`select_related`** et **`prefetch_related`** pour précharger les relations et éviter le problème des *N+1 queries*.
-- Application de **`distinct()`** sur les requêtes combinant plusieurs jointures.
-- Réduction du nombre de hits base de données grâce à une structure de queryset optimisée.
+---
 
-### 💾 Mise en cache intelligente
-- Mise en place d’un cache **granulaire par utilisateur et par projet** (via `django.core.cache`).
-- **Invalidation automatique** du cache lors de la création ou suppression d’un élément (projet, issue, commentaire).
-- **Backend file-based** en environnement de développement, facilement remplaçable par **Redis** en production.
+## 🧪 Lancer les tests
 
-### 🔄 Transactions et intégrité
-- Usage de **`transaction.atomic()`** pour garantir la cohérence des écritures simultanées.
-- Gestion explicite des erreurs `IntegrityError` et `ValidationError`.
+```bash
+pytest -v
+```
 
-### 🧼 Optimisation du code source
-- Code uniformisé et formaté automatiquement (Black, Isort, Flake8).
-- Découpage logique des viewsets, sérializers et permissions pour respecter le **principe de responsabilité unique (SRP)**.
-- Suppression des doublons et simplification des conditions redondantes.
+Les tests couvrent :
+- Authentification OAuth2 (`/o/token/`, `/o/token/refresh/`)
+- Inscription / connexion utilisateur
+- Gestion des projets / issues / commentaires
+- Mise en cache et invalidation automatique
 
 ---
 
 ## 🧠 Auteur
 
 👤 **NZT48DEV**  
-🎓 Projet n°10 - Créez une API sécurisée RESTful en utilisant Django REST Framework  
-📚 Parcours : *Développeur d’application Python – OpenClassrooms*  
+🎓 Projet n°10 – OpenClassrooms – *Développeur d’application Python*  
 📧 Contact : [nzt48.dev@gmail.com](mailto:nzt48.dev@gmail.com)
 
 ---
 
-## 🏁 Statut du projet
-
-✅ Authentification et permissions terminées  
-✅ Tests unitaires complets  
-✅ CI/CD GitHub Actions fonctionnelle  
-✅ Mise en cache et optimisation SQL opérationnelles  
-🕒 Documentation complémentaire à venir
-
----
-
 > ⚠️ **Note :**  
-> Les informations techniques détaillées dans ce projet (structure, configuration, tests, cache, etc.) sont fournies **uniquement à des fins pédagogiques** dans le cadre de l’évaluation.  
-> Dans un environnement professionnel, ces éléments ne seraient pas rendus publics afin de préserver la **sécurité** et la **confidentialité** du code source.
+> Les informations techniques et la configuration OAuth2 présentes ici sont fournies à des fins pédagogiques.  
+> En environnement professionnel, elles ne seraient **jamais rendues publiques** afin de préserver la **sécurité des identifiants clients** et des **tokens**.
