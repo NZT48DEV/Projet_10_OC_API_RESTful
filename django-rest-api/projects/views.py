@@ -187,12 +187,30 @@ class ContributorViewSet(viewsets.ModelViewSet):
         return paginator.get_paginated_response(page)
 
     def perform_create(self, serializer):
+        """Lorsqu'on ajoute un contributeur, il reçoit automatiquement le bon rôle et la bonne permission."""
+        project = serializer.validated_data.get("project")
+        user = serializer.validated_data.get("user")
+
+        # Empêche un doublon
+        if Contributor.objects.filter(user=user, project=project).exists():
+            raise ValidationError(
+                {"detail": "Cet utilisateur est déjà contributeur du projet."}
+            )
+
+        # Si c’est l’auteur du projet → rôle auteur
+        if project.author_user == user:
+            role = "Auteur et Contributeur du projet"
+            permission = "AUTHOR"
+        else:
+            role = "Contributeur"
+            permission = "CONTRIBUTOR"
+
         try:
             with transaction.atomic():
-                serializer.save()
+                serializer.save(role=role, permission=permission)
         except IntegrityError:
             raise ValidationError(
-                {"detail": "Cet utilisateur est déjà contributeur."}
+                {"detail": "Erreur lors de la création du contributeur."}
             )
 
     def destroy(self, request, *args, **kwargs):

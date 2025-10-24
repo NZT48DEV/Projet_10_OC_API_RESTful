@@ -57,6 +57,7 @@ class ContributorDetailSerializer(serializers.ModelSerializer):
         return obj.permission == "AUTHOR"
 
     def get_delete_contributeur_url(self, obj):
+        """Retourne l'URL de suppression sauf si l'utilisateur est auteur."""
         if obj.permission == "AUTHOR":
             return None
         request = self.context.get("request")
@@ -65,6 +66,7 @@ class ContributorDetailSerializer(serializers.ModelSerializer):
         return f"/api/contributors/{obj.id}/"
 
     def __init__(self, *args, **kwargs):
+        """Filtrage dynamique pour limiter les choix côté API."""
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request and not request.user.is_superuser:

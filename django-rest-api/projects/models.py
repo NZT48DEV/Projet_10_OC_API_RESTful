@@ -38,6 +38,14 @@ class Contributor(models.Model):
         ("CONTRIBUTOR", "Contributor"),
     ]
 
+    ROLE_CHOICES = [
+        (
+            "Auteur et Contributeur du projet",
+            "Auteur et Contributeur du projet",
+        ),
+        ("Contributeur", "Contributeur"),
+    ]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -49,7 +57,7 @@ class Contributor(models.Model):
         related_name="contributors",
     )
     permission = models.CharField(max_length=20, choices=PERMISSION_CHOICES)
-    role = models.CharField(max_length=255)
+    role = models.CharField(max_length=255, choices=ROLE_CHOICES)
     created_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
