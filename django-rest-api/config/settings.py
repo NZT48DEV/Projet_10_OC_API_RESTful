@@ -11,13 +11,13 @@ import dj_database_url
 from decouple import config
 
 # -----------------------------
-# 🔧 BASE DIR
+# BASE DIR
 # -----------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # -----------------------------
-# ⚙️ CONFIGURATION DE BASE
+# CONFIGURATION DE BASE
 # -----------------------------
 SECRET_KEY = config("SECRET_KEY", default="insecure-dev-key")
 DEBUG = config("DEBUG", default=False, cast=bool)
@@ -27,7 +27,7 @@ ALLOWED_HOSTS = config(
 
 
 # -----------------------------
-# 🧱 APPLICATIONS
+# APPLICATIONS
 # -----------------------------
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "oauth2_provider",
     "api_auth",
     "users",
     "projects",
@@ -73,7 +74,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 # -----------------------------
-# 🗃️ DATABASES
+# DATABASES
 # -----------------------------
 # Par défaut → SQLite (développement local)
 DATABASES = {
@@ -83,7 +84,7 @@ DATABASES = {
     }
 }
 
-# 🔄 Si GitHub Actions définit DATABASE_URL → bascule automatique vers PostgreSQL
+#  Si GitHub Actions définit DATABASE_URL → bascule automatique vers PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     DATABASES["default"] = dj_database_url.parse(
@@ -92,7 +93,7 @@ if DATABASE_URL:
 
 
 # -----------------------------
-# 🔐 VALIDATION DES MOTS DE PASSE
+# VALIDATION DES MOTS DE PASSE
 # -----------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -115,7 +116,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # -----------------------------
-# 🌍 INTERNATIONALISATION
+# INTERNATIONALISATION
 # -----------------------------
 LANGUAGE_CODE = "fr-FR"
 TIME_ZONE = "Europe/Paris"
@@ -124,7 +125,7 @@ USE_TZ = True
 
 
 # -----------------------------
-# 🖼️ FICHIERS STATIQUES
+# FICHIERS STATIQUES
 # -----------------------------
 STATIC_URL = "static/"
 
@@ -138,7 +139,7 @@ LOGOUT_REDIRECT_URL = "/api-auth/login/"
 
 
 # -----------------------------
-# 🕒 CONFIGURATION DES SESSIONS
+# CONFIGURATION DES SESSIONS
 # -----------------------------
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_AGE = 3600
@@ -152,15 +153,15 @@ SESSION_COOKIE_SAMESITE = "Lax"
 # -----------------------------
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.BrowsableAPIRenderer",
+        # "rest_framework.renderers.BrowsableAPIRenderer",
         "rest_framework.renderers.JSONRenderer",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "oauth2_provider.contrib.rest_framework.OAuth2Authentication",
         "rest_framework.authentication.SessionAuthentication",
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
@@ -168,9 +169,23 @@ REST_FRAMEWORK = {
     "UNAUTHENTICATED_USER": None,
 }
 
+# -----------------------------
+# AUTHENTIFICATION OAUTH2
+# -----------------------------
+OAUTH2_PROVIDER = {
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 36000,  # 10 heures
+    "REFRESH_TOKEN_EXPIRE_SECONDS": 1209600,  # 14 jours
+    "ROTATE_REFRESH_TOKEN": True,
+    "SCOPES": {
+        "read": "Lecture des données",
+        "write": "Modification des données",
+        "projects": "Accès aux projets SoftDesk",
+    },
+}
+
 
 # -----------------------------
-# 🧠 CACHE (optimisation locale)
+# CACHE (optimisation locale)
 # -----------------------------
 CACHES = {
     "default": {
@@ -182,6 +197,6 @@ CACHES = {
 
 
 # -----------------------------
-# 📦 DEFAULT PRIMARY KEY
+# DEFAULT PRIMARY KEY
 # -----------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

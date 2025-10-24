@@ -1,8 +1,4 @@
 from django.urls import include, path
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
 
 from .views import (
     CustomLoginView,
@@ -20,9 +16,6 @@ urlpatterns = [
     path("login/", CustomLoginView.as_view(), name="login"),
     # Déconnexion avec redirection vers /api-auth/login/
     path("logout/", CustomLogoutView.as_view(), name="logout"),
-    # JWT
-    path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    # Interface DRF (login/logout)
+    # Interface DRF classique (login/logout HTML)
     path("", include("rest_framework.urls")),
 ]

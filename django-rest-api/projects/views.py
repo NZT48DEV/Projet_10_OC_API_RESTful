@@ -119,10 +119,19 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         user = request.user
+        title = instance.title
+
         self.perform_destroy(instance)
-        cache.delete(f"user_projects_{user.id}")
+
+        safe_delete_pattern(f"user_projects_{user.id}")
+        safe_delete_pattern(f"issues_user_{user.id}_project_*")
+
         return Response(
-            status=status.HTTP_204_NO_CONTENT, content_type="application/json"
+            {
+                "message": f"Le projet '{title}' et ses données associées ont été supprimés.",
+                "status": "success",
+            },
+            status=status.HTTP_200_OK,
         )
 
 
@@ -188,9 +197,19 @@ class ContributorViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        user = instance.user
+
         self.perform_destroy(instance)
+
+        safe_delete_pattern(f"user_projects_{user.id}")
+        safe_delete_pattern(f"issues_user_{user.id}_project_*")
+
         return Response(
-            status=status.HTTP_204_NO_CONTENT, content_type="application/json"
+            {
+                "message": f"Le contributeur '{user.username}' a été retiré du projet.",
+                "status": "success",
+            },
+            status=status.HTTP_200_OK,
         )
 
 
@@ -265,7 +284,6 @@ class IssueViewSet(viewsets.ModelViewSet):
 
         serializer.save(author_user=user)
 
-        # ✅ Invalidation du cache des issues (compatible tous backends)
         safe_delete_pattern(f"issues_user_{user.id}_project_*")
 
     def create(self, request, *args, **kwargs):
@@ -277,12 +295,31 @@ class IssueViewSet(viewsets.ModelViewSet):
         assignee = issue.assignee_user
         msg = f"Issue '{issue.title}' créée"
         if assignee:
-            msg += f" et assignée à '{assignee.username}'."
-        else:
-            msg += "."
+            msg += f" et assignée à '{assignee.username}'"
+        msg += "."
         data = {"message": msg}
         data.update(serializer.data)
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def destroy(self, request, *args, **kwargs):
+        """Supprime une issue et renvoie un message de confirmation clair."""
+        instance = self.get_object()
+        title = instance.title
+        project_id = instance.project_id
+        user = request.user
+
+        self.perform_destroy(instance)
+
+        safe_delete_pattern(f"issues_user_{user.id}_project_{project_id}")
+        safe_delete_pattern(f"issues_user_{user.id}_project_all")
+
+        return Response(
+            {
+                "message": f"L’issue '{title}' a bien été supprimée.",
+                "status": "success",
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 # -----------------------------
@@ -334,16 +371,30 @@ class CommentViewSet(viewsets.ModelViewSet):
         project = issue.project
         user = self.request.user
         desc = serializer.validated_data.get("description")
-        is_contrib = project.contributors.filter(user=user).exists()
-        if not (is_contrib or project.author_user == user):
-            raise PermissionDenied("Vous devez être contributeur.")
+
+        if not (
+            project.contributors.filter(user=user).exists()
+            or project.author_user == user
+        ):
+            raise PermissionDenied("Vous devez être contributeur du projet.")
+
         if Comment.objects.filter(
             issue=issue, author_user=user, description__iexact=desc
         ).exists():
             raise ValidationError(
-                {"detail": "Un commentaire identique existe déjà."}
+                {
+                    "detail": "Un commentaire identique existe déjà pour cette issue."
+                }
             )
-        serializer.save(author_user=user)
+
+        try:
+            serializer.save(author_user=user)
+        except IntegrityError:
+            raise ValidationError(
+                {
+                    "detail": "Un commentaire identique existe déjà pour cette issue."
+                }
+            )
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -358,9 +409,21 @@ class CommentViewSet(viewsets.ModelViewSet):
         data.update(serializer.data)
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
 
+    def perform_update(self, serializer):
+        """Empêche la duplication de commentaire lors de la modification."""
+        try:
+            serializer.save()
+        except IntegrityError:
+            raise ValidationError(
+                {
+                    "detail": "Un commentaire identique existe déjà pour cette issue."
+                }
+            )
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(
-            status=status.HTTP_204_NO_CONTENT, content_type="application/json"
+            status=status.HTTP_204_NO_CONTENT,
+            content_type="application/json",
         )

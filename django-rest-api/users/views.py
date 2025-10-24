@@ -2,6 +2,7 @@ from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import User
 from .permissions import IsNotAuthenticated, IsSelfOrReadOnly
@@ -53,3 +54,11 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(
             status=status.HTTP_204_NO_CONTENT, content_type="application/json"
         )
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserDetailSerializer(request.user)
+        return Response(serializer.data)
