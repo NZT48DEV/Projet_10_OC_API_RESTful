@@ -167,6 +167,85 @@ SoftDesk implémente le **grant type "Resource Owner Password Credentials"**, id
 
 ---
 
+## 🌐 Endpoints de l’API
+
+### 🔑 Authentification (`/api-auth/`)
+
+| Méthode | Endpoint | Description |
+|----------|-----------|-------------|
+| `POST` | `/o/token/` | Obtenir un token d’accès |
+| `POST` | `/o/token/refresh/` | Rafraîchir un token expiré |
+| `POST` | `/api-auth/register/` | Créer un compte utilisateur |
+| `POST` | `/api-auth/login/` | Connexion via interface HTML |
+| `GET` | `/api-auth/logout/` | Déconnexion et redirection |
+| `GET` | `/api-auth/` | Page d’accueil de l’API |
+
+---
+
+### 👥 Utilisateurs (`/api/users/`)
+
+| Méthode | Endpoint | Description |
+|----------|-----------|-------------|
+| `GET` | `/api/users/` | Liste de tous les utilisateurs |
+| `GET` | `/api/users/<id>/` | Détails d’un utilisateur |
+| `GET` | `/api/users/me/` | Récupère le profil connecté |
+| `DELETE` | `/api/users/<id>/` | Supprimer un utilisateur (admin uniquement) |
+
+---
+
+### 🧱 Projets (`/api/projects/`)
+
+| Méthode | Endpoint | Description |
+|----------|-----------|-------------|
+| `GET` | `/api/projects/` | Liste des projets accessibles |
+| `POST` | `/api/projects/` | Créer un projet |
+| `GET` | `/api/projects/<id>/` | Détails d’un projet |
+| `DELETE` | `/api/projects/<id>/` | Supprimer un projet (auteur uniquement) |
+
+---
+
+### 🤝 Contributeurs (`/api/contributors/`)
+
+| Méthode | Endpoint | Description |
+|----------|-----------|-------------|
+| `GET` | `/api/contributors/` | Liste des contributeurs groupés par projet |
+| `POST` | `/api/contributors/` | Ajouter un contributeur à un projet |
+| `DELETE` | `/api/contributors/<id>/` | Supprimer un contributeur du projet |
+
+> Lorsqu’un contributeur est ajouté, son rôle est automatiquement défini :  
+> - Auteur : `"Auteur et Contributeur du projet"`  
+> - Autre utilisateur : `"Contributeur"`
+
+---
+
+### 🐞 Issues (`/api/issues/`)
+
+| Méthode | Endpoint | Description |
+|----------|-----------|-------------|
+| `GET` | `/api/issues/` | Liste des issues (option `?project=<id>` pour filtrer) |
+| `POST` | `/api/issues/` | Créer une issue dans un projet |
+| `GET` | `/api/issues/<id>/` | Détails d’une issue |
+| `DELETE` | `/api/issues/<id>/` | Supprimer une issue |
+| `PATCH` | `/api/issues/<id>/` | Modifier une issue |
+
+> ⚙️ Lors de la création, seul un contributeur du projet peut être assigné.
+
+---
+
+### 💬 Commentaires (`/api/comments/`)
+
+| Méthode | Endpoint | Description |
+|----------|-----------|-------------|
+| `GET` | `/api/comments/` | Liste des commentaires accessibles |
+| `POST` | `/api/comments/` | Ajouter un commentaire à une issue |
+| `GET` | `/api/comments/<id>/` | Détails d’un commentaire |
+| `DELETE` | `/api/comments/<id>/` | Supprimer un commentaire |
+| `PATCH` | `/api/comments/<id>/` | Modifier un commentaire |
+
+> 🚫 La duplication de commentaires identiques sur la même issue est empêchée.
+
+---
+
 ## ⚡ Optimisations techniques
 
 - ⚙️ **select_related / prefetch_related** : requêtes SQL optimisées  
