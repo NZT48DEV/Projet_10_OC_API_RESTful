@@ -1,3 +1,8 @@
+"""
+Tests des permissions RGPD sur le modèle User.
+Vérifie la confidentialité, les droits de modification et de suppression.
+"""
+
 import pytest
 from rest_framework.test import APIClient
 from users.models import User
@@ -5,10 +10,10 @@ from users.models import User
 
 @pytest.mark.django_db
 class TestUserPermissions:
-    """Tests essentiels sur les permissions RGPD des utilisateurs."""
+    """Tests essentiels sur les permissions utilisateurs."""
 
     def setup_method(self):
-        """Création des utilisateurs avant chaque test (DB disponible)."""
+        """Initialise deux utilisateurs avant chaque test."""
         self.client = APIClient()
 
         self.alice = User.objects.create_user(
@@ -26,7 +31,9 @@ class TestUserPermissions:
             age=30,
         )
 
-    # --- LECTURE / LISTE ---
+    # ------------------------------------------------------------------
+    # LECTURE / LISTE
+    # ------------------------------------------------------------------
     def test_authenticated_user_sees_only_self(self):
         """Un utilisateur authentifié ne voit que son propre profil."""
         self.client.force_authenticate(user=self.alice)
@@ -38,12 +45,14 @@ class TestUserPermissions:
         assert len(results) == 1
         assert results[0]["username"] == "alice"
 
-    # --- MODIFICATION ---
+    # ------------------------------------------------------------------
+    # MODIFICATION
+    # ------------------------------------------------------------------
     def test_user_can_update_self_but_not_others(self):
-        """Un utilisateur peut modifier ses infos, pas celles d’autrui."""
+        """Un utilisateur peut modifier ses données, pas celles d’autrui."""
         self.client.force_authenticate(user=self.alice)
 
-        # ✅ Mise à jour de soi-même
+        # Mise à jour de son propre profil
         res_self = self.client.patch(
             f"/api/users/{self.alice.id}/",
             {"can_data_be_shared": False},
@@ -53,7 +62,7 @@ class TestUserPermissions:
         self.alice.refresh_from_db()
         assert self.alice.can_data_be_shared is False
 
-        # 🚫 Tentative de mise à jour d’un autre utilisateur
+        # Tentative de modification d’un autre utilisateur
         res_other = self.client.patch(
             f"/api/users/{self.bob.id}/",
             {"can_be_contacted": True},
@@ -63,17 +72,22 @@ class TestUserPermissions:
         self.bob.refresh_from_db()
         assert self.bob.can_be_contacted is False
 
-    # --- SUPPRESSION ---
+    # ------------------------------------------------------------------
+    # SUPPRESSION
+    # ------------------------------------------------------------------
     def test_user_can_delete_self_only(self):
-        """Un utilisateur peut supprimer uniquement son compte."""
+        """Un utilisateur peut supprimer uniquement son propre compte."""
         self.client.force_authenticate(user=self.bob)
         res = self.client.delete(f"/api/users/{self.bob.id}/")
+
         assert res.status_code in [200, 204]
         assert not User.objects.filter(id=self.bob.id).exists()
 
-    # --- CREATION ---
+    # ------------------------------------------------------------------
+    # CRÉATION
+    # ------------------------------------------------------------------
     def test_authenticated_user_cannot_create_new_account(self):
-        """Un utilisateur déjà connecté ne peut pas créer un autre compte."""
+        """Un utilisateur connecté ne peut pas créer un autre compte."""
         self.client.force_authenticate(user=self.alice)
         res = self.client.post(
             "/api/users/",

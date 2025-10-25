@@ -1,3 +1,9 @@
+"""
+Définition des serializers du module users.
+Gère la sérialisation des informations publiques et complètes
+du modèle utilisateur, avec validation et sécurisation du mot de passe.
+"""
+
 from django.contrib.auth.password_validation import validate_password
 from django.core.validators import RegexValidator
 from rest_framework import serializers
@@ -6,9 +12,11 @@ from rest_framework.validators import UniqueValidator
 from .models import User
 
 
-# --- Serializer léger (liste) ---
+# ---------------------------------------------------------------------
+# UTILISATEURS – LISTE
+# ---------------------------------------------------------------------
 class UserListSerializer(serializers.ModelSerializer):
-    """Affiche uniquement les infos publiques d’un utilisateur."""
+    """Serializer simplifié pour afficher les informations publiques."""
 
     class Meta:
         model = User
@@ -16,9 +24,11 @@ class UserListSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_time"]
 
 
-# --- Serializer détaillé (création / édition / détail) ---
+# ---------------------------------------------------------------------
+# UTILISATEURS – DÉTAIL / CRÉATION / ÉDITION
+# ---------------------------------------------------------------------
 class UserDetailSerializer(serializers.ModelSerializer):
-    """Affiche et gère les infos complètes d’un utilisateur."""
+    """Serializer détaillé pour la gestion complète du profil."""
 
     username = serializers.CharField(
         min_length=3,
@@ -30,7 +40,10 @@ class UserDetailSerializer(serializers.ModelSerializer):
             ),
             RegexValidator(
                 regex=r"^[a-zA-Z0-9_]+$",
-                message="Le nom d’utilisateur ne doit contenir que des lettres, chiffres ou underscores (_).",
+                message=(
+                    "Le nom d’utilisateur ne doit contenir que des lettres, "
+                    "chiffres ou underscores (_)."
+                ),
             ),
         ],
     )
@@ -38,9 +51,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True,
         required=True,
-        validators=[
-            validate_password
-        ],  # utilise les règles de AUTH_PASSWORD_VALIDATORS
+        validators=[validate_password],
         style={"input_type": "password"},
     )
 
@@ -59,7 +70,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_time"]
 
     def create(self, validated_data):
-        """Création sécurisée avec hash du mot de passe."""
+        """Crée un utilisateur avec mot de passe hashé."""
         password = validated_data.pop("password", None)
         user = User(**validated_data)
         if password:

@@ -1,3 +1,8 @@
+"""
+Tests unitaires du modèle personnalisé User.
+Vérifie la création, la validation et les contraintes de champs.
+"""
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -6,21 +11,21 @@ User = get_user_model()
 
 
 class UserModelTest(TestCase):
-    """Tests essentiels du modèle User optimisés."""
+    """Tests essentiels du modèle User."""
 
     @classmethod
     def setUpTestData(cls):
-        """Créé une seule fois pour tous les tests (gain de temps)."""
-        cls.valid_data = dict(
-            username="alice",
-            password="pass123",
-            age=25,
-            can_be_contacted=True,
-            can_data_be_shared=False,
-        )
+        """Prépare des données valides pour l’ensemble des tests."""
+        cls.valid_data = {
+            "username": "alice",
+            "password": "pass123",
+            "age": 25,
+            "can_be_contacted": True,
+            "can_data_be_shared": False,
+        }
 
     def test_create_user_valid(self):
-        """Création d’un utilisateur valide."""
+        """Vérifie la création d’un utilisateur valide."""
         user = User.objects.create_user(**self.valid_data)
         self.assertEqual(user.username, "alice")
         self.assertEqual(str(user), "alice")
@@ -28,7 +33,7 @@ class UserModelTest(TestCase):
         self.assertFalse(user.can_data_be_shared)
 
     def test_user_age_validation(self):
-        """Âge inférieur à 15 → ValidationError."""
+        """Âge < 15 doit lever une ValidationError."""
         invalid_data = self.valid_data.copy()
         invalid_data["age"] = 10
         user = User(**invalid_data)
@@ -37,11 +42,7 @@ class UserModelTest(TestCase):
         self.assertIn("Âge invalide", str(context.exception))
 
     def test_boolean_fields_required(self):
-        """Les champs booléens sont obligatoires."""
-        user = User(
-            username="charlie",
-            password="pass123",
-            age=20,
-        )
+        """Les champs booléens doivent être renseignés."""
+        user = User(username="charlie", password="pass123", age=20)
         with self.assertRaises(ValidationError):
             user.full_clean()

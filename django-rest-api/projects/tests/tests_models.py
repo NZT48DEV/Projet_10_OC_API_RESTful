@@ -1,3 +1,9 @@
+"""
+Tests unitaires des modèles du module projects.
+Vérifie la création, la cohérence et la représentation textuelle
+des entités principales : Project, Contributor, Issue et Comment.
+"""
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from projects.models import Comment, Contributor, Issue, Project
@@ -6,11 +12,11 @@ User = get_user_model()
 
 
 class ProjectModelTest(TestCase):
-    """Tests essentiels des modèles du module projects."""
+    """Tests des modèles du module projects."""
 
     @classmethod
     def setUpTestData(cls):
-        """Création unique des données de base (gros gain de performance)."""
+        """Crée les données de base partagées entre tous les tests."""
         cls.user = User.objects.create_user(
             username="testuser",
             password="pass123",
@@ -26,12 +32,12 @@ class ProjectModelTest(TestCase):
         )
 
     def test_project_str_and_creation(self):
-        """Vérifie la création et la représentation textuelle du projet."""
+        """Teste la création et la méthode __str__ du modèle Project."""
         self.assertEqual(self.project.title, "SoftDesk API")
         self.assertEqual(str(self.project), "SoftDesk API (BACK_END)")
 
     def test_contributor_str_and_creation(self):
-        """Vérifie la création d’un contributeur et son affichage."""
+        """Teste la création et l’affichage d’un contributeur."""
         contributor = Contributor.objects.create(
             user=self.user,
             project=self.project,
@@ -42,7 +48,7 @@ class ProjectModelTest(TestCase):
         self.assertIn("Chef de projet", str(contributor))
 
     def test_issue_str_and_creation(self):
-        """Vérifie la création et la représentation textuelle d’une issue."""
+        """Teste la création et la méthode __str__ du modèle Issue."""
         issue = Issue.objects.create(
             title="Bug critique",
             description="Erreur de connexion",
@@ -56,7 +62,7 @@ class ProjectModelTest(TestCase):
         self.assertIn("Bug critique", str(issue))
 
     def test_comment_str_and_creation(self):
-        """Vérifie la création d’un commentaire et sa représentation."""
+        """Teste la création et la méthode __str__ du modèle Comment."""
         issue = Issue.objects.create(
             title="Erreur d’affichage",
             description="Dashboard mobile cassé",

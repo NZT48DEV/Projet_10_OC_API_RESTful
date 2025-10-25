@@ -1,3 +1,9 @@
+"""
+Définition des routes du module projects.
+Expose les endpoints principaux pour les projets, contributeurs,
+issues et commentaires via un routeur DRF.
+"""
+
 from projects.views import (
     CommentViewSet,
     ContributorViewSet,

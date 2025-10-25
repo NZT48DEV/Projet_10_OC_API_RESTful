@@ -1,9 +1,16 @@
+"""
+Définition du modèle utilisateur personnalisé.
+Inclut la validation de l’âge minimal et la gestion des consentements
+RGPD, avec un gestionnaire adapté pour les créations d’utilisateurs.
+"""
+
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
 from django.db import models
 
 
 def validate_age(value):
+    """Vérifie que l’âge de l’utilisateur est supérieur ou égal à 15 ans."""
     if value < 15:
         raise ValidationError(
             (
@@ -15,7 +22,10 @@ def validate_age(value):
 
 
 class CustomUserManager(BaseUserManager):
+    """Gestionnaire personnalisé pour le modèle User."""
+
     def create_user(self, username, email=None, password=None, **extra_fields):
+        """Crée un utilisateur standard avec validations renforcées."""
         if not username:
             raise ValueError("Le champ 'username' est obligatoire.")
         if "age" not in extra_fields:
@@ -34,9 +44,9 @@ class CustomUserManager(BaseUserManager):
     def create_superuser(
         self, username, email=None, password=None, **extra_fields
     ):
+        """Crée un superutilisateur avec des valeurs par défaut sûres."""
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-
         extra_fields.setdefault("age", 30)
         extra_fields.setdefault("can_be_contacted", False)
         extra_fields.setdefault("can_data_be_shared", False)
@@ -50,6 +60,8 @@ class CustomUserManager(BaseUserManager):
 
 
 class User(AbstractUser):
+    """Modèle utilisateur personnalisé avec champs RGPD."""
+
     age = models.PositiveIntegerField(validators=[validate_age])
     can_be_contacted = models.BooleanField()
     can_data_be_shared = models.BooleanField()
@@ -58,8 +70,10 @@ class User(AbstractUser):
     objects = CustomUserManager()
 
     def save(self, *args, **kwargs):
+        """Valide l’objet avant sauvegarde."""
         self.full_clean()
         super().save(*args, **kwargs)
 
     def __str__(self):
+        """Retourne le nom d’utilisateur."""
         return self.username

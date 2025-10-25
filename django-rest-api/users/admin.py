@@ -1,3 +1,9 @@
+"""
+Configuration de l’administration Django pour le modèle utilisateur.
+Définit l’affichage, les filtres et les champs relatifs aux consentements
+RGPD dans l’interface d’administration.
+"""
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
@@ -7,7 +13,7 @@ from .models import User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    """Affichage personnalisé du modèle User dans l'administration."""
+    """Affichage personnalisé du modèle User dans l’administration."""
 
     fieldsets = (
         (None, {"fields": ("username", "password")}),

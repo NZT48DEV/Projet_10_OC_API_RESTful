@@ -1,3 +1,9 @@
+"""
+Définition des routes du module users.
+Expose les endpoints pour la gestion des utilisateurs et du profil
+personnel (/me/).
+"""
+
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 

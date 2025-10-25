@@ -1,3 +1,9 @@
+"""
+Définition des modèles du module projects.
+Inclut les entités Project, Contributor, Issue et Comment.
+Chaque modèle gère ses relations, ses contraintes et sa représentation.
+"""
+
 import uuid
 
 from django.conf import settings
@@ -5,6 +11,8 @@ from django.db import models
 
 
 class Project(models.Model):
+    """Représente un projet dans le système SoftDesk."""
+
     TYPE_CHOICES = [
         ("BACK_END", "Back-end"),
         ("FRONT_END", "Front-end"),
@@ -29,10 +37,13 @@ class Project(models.Model):
         verbose_name_plural = "Projets"
 
     def __str__(self):
+        """Retourne le nom et le type du projet."""
         return f"{self.title} ({self.type})"
 
 
 class Contributor(models.Model):
+    """Définit le lien entre un utilisateur et un projet."""
+
     PERMISSION_CHOICES = [
         ("AUTHOR", "Author"),
         ("CONTRIBUTOR", "Contributor"),
@@ -67,10 +78,13 @@ class Contributor(models.Model):
         ordering = ["project", "user"]
 
     def __str__(self):
+        """Retourne l’utilisateur, son rôle et le projet associé."""
         return f"{self.user.username} ({self.role} - {self.project.title})"
 
 
 class Issue(models.Model):
+    """Représente une tâche, anomalie ou amélioration d’un projet."""
+
     TAG_CHOICES = [
         ("BUG", "Bug"),
         ("FEATURE", "Feature"),
@@ -108,7 +122,9 @@ class Issue(models.Model):
         related_name="assigned_issues",
     )
     project = models.ForeignKey(
-        "projects.Project", on_delete=models.CASCADE, related_name="issues"
+        "projects.Project",
+        on_delete=models.CASCADE,
+        related_name="issues",
     )
     created_time = models.DateTimeField(auto_now_add=True)
 
@@ -119,10 +135,13 @@ class Issue(models.Model):
         verbose_name_plural = "Issues"
 
     def __str__(self):
+        """Retourne le titre et le tag associés à l’issue."""
         return f"[{self.project.title}] {self.title} ({self.tag})"
 
 
 class Comment(models.Model):
+    """Représente un commentaire associé à une issue."""
+
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     description = models.TextField()
     author_user = models.ForeignKey(
@@ -144,6 +163,7 @@ class Comment(models.Model):
         verbose_name_plural = "Commentaires"
 
     def __str__(self):
+        """Retourne une représentation courte et informative du commentaire."""
         return (
             f"Comment {self.uuid} by {self.author_user.username} "
             f"on {self.issue.title}"

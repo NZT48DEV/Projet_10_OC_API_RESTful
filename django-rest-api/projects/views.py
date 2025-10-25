@@ -1,3 +1,10 @@
+"""
+Vues principales du module projects.
+Gèrent la logique de création, lecture, mise à jour et suppression
+pour les entités Project, Contributor, Issue et Comment.
+Incluent des optimisations via cache, select_related et prefetch_related.
+"""
+
 from collections import defaultdict
 
 from django.core.cache import cache
@@ -25,15 +32,16 @@ from rest_framework.response import Response
 from utils.cache_tools import safe_delete_pattern
 
 
-# -----------------------------
-#  PROJETS
-# -----------------------------
+# ---------------------------------------------------------------------
+# PROJETS
+# ---------------------------------------------------------------------
 class ProjectViewSet(viewsets.ModelViewSet):
-    """Optimisation via cache, select_related et prefetch_related."""
+    """Vue principale de gestion des projets."""
 
     permission_classes = [IsAuthenticated, IsAuthorAndContributor]
 
     def get_serializer_class(self):
+        """Sélectionne le serializer selon l’action."""
         return (
             ProjectListSerializer
             if self.action == "list"
@@ -41,6 +49,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
+        """Récupère la liste des projets avec cache et préchargement."""
         user = self.request.user
         cache_key = f"user_projects_{user.id}"
 
@@ -60,6 +69,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return qs
 
     def list(self, request, *args, **kwargs):
+        """Affiche les projets de l’utilisateur avec message personnalisé."""
         user = request.user
         if not Project.objects.filter(contributors__user=user).exists():
             return Response(
@@ -74,6 +84,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
+        """Crée un projet et son auteur-contributeur associé."""
         title = serializer.validated_data.get("title")
         user = self.request.user
 
@@ -99,6 +110,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             )
 
     def create(self, request, *args, **kwargs):
+        """Crée un projet et renvoie un message clair."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -117,6 +129,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         )
 
     def destroy(self, request, *args, **kwargs):
+        """Supprime un projet et nettoie le cache associé."""
         instance = self.get_object()
         user = request.user
         title = instance.title
@@ -128,23 +141,27 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         return Response(
             {
-                "message": f"Le projet '{title}' et ses données associées ont été supprimés.",
+                "message": (
+                    f"Le projet '{title}' et ses données associées "
+                    "ont été supprimés."
+                ),
                 "status": "success",
             },
             status=status.HTTP_200_OK,
         )
 
 
-# -----------------------------
-#  CONTRIBUTEURS
-# -----------------------------
+# ---------------------------------------------------------------------
+# CONTRIBUTEURS
+# ---------------------------------------------------------------------
 class ContributorViewSet(viewsets.ModelViewSet):
-    """Optimisation via select_related sur user et project."""
+    """Vue de gestion des contributeurs."""
 
     permission_classes = [IsAuthenticated, IsAuthorAndContributor]
     pagination_class = ContributorProjectPagination
 
     def get_serializer_class(self):
+        """Choisit un serializer selon l’action en cours."""
         return (
             ContributorListSerializer
             if self.action == "list"
@@ -152,6 +169,7 @@ class ContributorViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
+        """Retourne la liste des contributeurs accessibles."""
         user = self.request.user
         qs = Contributor.objects.select_related("project", "user")
         if user.is_superuser:
@@ -159,15 +177,18 @@ class ContributorViewSet(viewsets.ModelViewSet):
         return qs.filter(project__contributors__user=user).distinct()
 
     def list(self, request, *args, **kwargs):
+        """Regroupe les contributeurs par projet."""
         queryset = self.get_queryset()
         if not queryset.exists():
             return Response(
                 {"detail": "Accès refusé : aucun projet associé."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
         grouped = defaultdict(list)
         for contributor in queryset:
             grouped[contributor.project.id].append(contributor)
+
         projects = [
             {
                 "project_id": pid,
@@ -180,6 +201,7 @@ class ContributorViewSet(viewsets.ModelViewSet):
             }
             for pid, c in grouped.items()
         ]
+
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(projects, request)
         if not page:
@@ -187,17 +209,15 @@ class ContributorViewSet(viewsets.ModelViewSet):
         return paginator.get_paginated_response(page)
 
     def perform_create(self, serializer):
-        """Lorsqu'on ajoute un contributeur, il reçoit automatiquement le bon rôle et la bonne permission."""
+        """Ajoute un contributeur avec le rôle adapté."""
         project = serializer.validated_data.get("project")
         user = serializer.validated_data.get("user")
 
-        # Empêche un doublon
         if Contributor.objects.filter(user=user, project=project).exists():
             raise ValidationError(
                 {"detail": "Cet utilisateur est déjà contributeur du projet."}
             )
 
-        # Si c’est l’auteur du projet → rôle auteur
         if project.author_user == user:
             role = "Auteur et Contributeur du projet"
             permission = "AUTHOR"
@@ -214,6 +234,7 @@ class ContributorViewSet(viewsets.ModelViewSet):
             )
 
     def destroy(self, request, *args, **kwargs):
+        """Supprime un contributeur et purge le cache."""
         instance = self.get_object()
         user = instance.user
 
@@ -224,18 +245,20 @@ class ContributorViewSet(viewsets.ModelViewSet):
 
         return Response(
             {
-                "message": f"Le contributeur '{user.username}' a été retiré du projet.",
+                "message": (
+                    f"Le contributeur '{user.username}' a été retiré du projet."
+                ),
                 "status": "success",
             },
             status=status.HTTP_200_OK,
         )
 
 
-# -----------------------------
-#  ISSUES
-# -----------------------------
+# ---------------------------------------------------------------------
+# ISSUES
+# ---------------------------------------------------------------------
 class IssueViewSet(viewsets.ModelViewSet):
-    """Optimisation via cache fin et select_related sur relations uniques."""
+    """Vue principale pour la gestion des issues."""
 
     permission_classes = [
         IsAuthenticated,
@@ -243,6 +266,7 @@ class IssueViewSet(viewsets.ModelViewSet):
     ]
 
     def get_serializer_class(self):
+        """Retourne le serializer selon l’action."""
         return (
             IssueListSerializer
             if self.action == "list"
@@ -250,6 +274,7 @@ class IssueViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
+        """Charge les issues avec cache et relations optimisées."""
         user = self.request.user
         project_id = self.request.query_params.get("project")
         cache_key = f"issues_user_{user.id}_project_{project_id or 'all'}"
@@ -272,6 +297,7 @@ class IssueViewSet(viewsets.ModelViewSet):
         return qs
 
     def list(self, request, *args, **kwargs):
+        """Liste les issues accessibles à l’utilisateur."""
         user = request.user
         if not Project.objects.filter(contributors__user=user).exists():
             return Response(
@@ -281,14 +307,15 @@ class IssueViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
+        """Crée une issue et valide les permissions associées."""
         user = self.request.user
         project = serializer.validated_data.get("project")
 
         is_contrib = project.contributors.filter(user=user).exists()
         if not (is_contrib or project.author_user == user):
             raise PermissionDenied(
-                "Accès refusé : vous devez être contributeur "
-                "d’un projet pour créer une issue."
+                "Accès refusé : vous devez être contributeur d’un projet "
+                "pour créer une issue."
             )
 
         assignee = serializer.validated_data.get("assignee_user")
@@ -301,10 +328,10 @@ class IssueViewSet(viewsets.ModelViewSet):
             )
 
         serializer.save(author_user=user)
-
         safe_delete_pattern(f"issues_user_{user.id}_project_*")
 
     def create(self, request, *args, **kwargs):
+        """Crée une issue avec message clair et lien d’assignation."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -320,7 +347,7 @@ class IssueViewSet(viewsets.ModelViewSet):
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
 
     def destroy(self, request, *args, **kwargs):
-        """Supprime une issue et renvoie un message de confirmation clair."""
+        """Supprime une issue et nettoie les caches associés."""
         instance = self.get_object()
         title = instance.title
         project_id = instance.project_id
@@ -340,11 +367,11 @@ class IssueViewSet(viewsets.ModelViewSet):
         )
 
 
-# -----------------------------
-#  COMMENTAIRES
-# -----------------------------
+# ---------------------------------------------------------------------
+# COMMENTAIRES
+# ---------------------------------------------------------------------
 class CommentViewSet(viewsets.ModelViewSet):
-    """Optimisation via select_related sur issue et auteur."""
+    """Vue principale pour la gestion des commentaires."""
 
     permission_classes = [
         IsAuthenticated,
@@ -352,6 +379,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     ]
 
     def get_serializer_class(self):
+        """Retourne le serializer selon l’action."""
         return (
             CommentListSerializer
             if self.action == "list"
@@ -359,6 +387,7 @@ class CommentViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
+        """Charge les commentaires liés aux issues accessibles."""
         user = self.request.user
         qs = Comment.objects.select_related(
             "issue", "issue__project", "issue__assignee_user", "author_user"
@@ -368,6 +397,7 @@ class CommentViewSet(viewsets.ModelViewSet):
         return qs.filter(issue__project__contributors__user=user)
 
     def list(self, request, *args, **kwargs):
+        """Liste les commentaires selon les droits de l’utilisateur."""
         user = request.user
         if not Project.objects.filter(contributors__user=user).exists():
             return Response(
@@ -385,6 +415,7 @@ class CommentViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
+        """Crée un commentaire après vérification des droits."""
         issue = serializer.validated_data.get("issue")
         project = issue.project
         user = self.request.user
@@ -400,21 +431,18 @@ class CommentViewSet(viewsets.ModelViewSet):
             issue=issue, author_user=user, description__iexact=desc
         ).exists():
             raise ValidationError(
-                {
-                    "detail": "Un commentaire identique existe déjà pour cette issue."
-                }
+                {"detail": "Un commentaire identique existe déjà."}
             )
 
         try:
             serializer.save(author_user=user)
         except IntegrityError:
             raise ValidationError(
-                {
-                    "detail": "Un commentaire identique existe déjà pour cette issue."
-                }
+                {"detail": "Un commentaire identique existe déjà."}
             )
 
     def create(self, request, *args, **kwargs):
+        """Crée un commentaire et renvoie un message clair."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -428,17 +456,16 @@ class CommentViewSet(viewsets.ModelViewSet):
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_update(self, serializer):
-        """Empêche la duplication de commentaire lors de la modification."""
+        """Empêche la duplication lors de la mise à jour d’un commentaire."""
         try:
             serializer.save()
         except IntegrityError:
             raise ValidationError(
-                {
-                    "detail": "Un commentaire identique existe déjà pour cette issue."
-                }
+                {"detail": "Un commentaire identique existe déjà."}
             )
 
     def destroy(self, request, *args, **kwargs):
+        """Supprime un commentaire et renvoie une réponse vide."""
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(

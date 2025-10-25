@@ -1,3 +1,9 @@
+"""
+Tests des permissions principales de l’API SoftDesk.
+Couvre l'accès aux projets, contributeurs, issues et commentaires selon
+le rôle des utilisateurs.
+"""
+
 import pytest
 from django.urls import reverse
 from projects.models import Comment, Contributor, Issue, Project
@@ -7,10 +13,10 @@ from users.models import User
 
 @pytest.mark.django_db
 class TestAPIBehavior:
-    """Tests essentiels sur les permissions principales de l’API SoftDesk."""
+    """Tests des règles de permissions globales sur l’API SoftDesk."""
 
     def setup_method(self):
-        """Initialisation par test (DB disponible)."""
+        """Prépare les données de test pour chaque scénario."""
         self.client = APIClient()
 
         # Utilisateurs
@@ -57,7 +63,7 @@ class TestAPIBehavior:
             role="Contributeur",
         )
 
-        # Issue + Commentaire
+        # Issue et commentaire
         self.issue = Issue.objects.create(
             title="Bug critique",
             description="Un bug à corriger",
@@ -73,17 +79,21 @@ class TestAPIBehavior:
             author_user=self.contributor,
         )
 
-    # -------------------- PROJETS --------------------
+    # ------------------------------------------------------------------
+    # PROJETS
+    # ------------------------------------------------------------------
     def test_anonymous_cannot_access_projects(self):
-        """Les utilisateurs non connectés n’ont aucun accès."""
+        """Vérifie qu’un utilisateur anonyme ne peut pas accéder aux projets."""
         res = self.client.get(reverse("project-list"))
         assert res.status_code in [401, 403]
 
     def test_author_and_contributor_project_rights(self):
-        """Auteur peut créer/modifier/supprimer — contributeur lecture seule."""
+        """
+        Vérifie que l’auteur peut modifier un projet, mais pas le contributeur.
+        """
         url = reverse("project-detail", args=[self.project.id])
 
-        # Auteur : mise à jour autorisée
+        # Auteur : modification autorisée
         self.client.force_authenticate(user=self.author)
         res = self.client.patch(url, {"title": "Projet Modifié"})
         assert res.status_code == 200
@@ -93,31 +103,36 @@ class TestAPIBehavior:
         res = self.client.patch(url, {"title": "Hack Projet"})
         assert res.status_code == 403
 
-    # -------------------- CONTRIBUTEURS --------------------
+    # ------------------------------------------------------------------
+    # CONTRIBUTEURS
+    # ------------------------------------------------------------------
     def test_author_can_add_and_remove_contributor(self):
-        """L’auteur peut ajouter ou supprimer un contributeur."""
+        """Vérifie que seul l’auteur peut gérer les contributeurs."""
         self.client.force_authenticate(user=self.author)
-
         add_url = reverse("contributor-list")
+
+        # Ajout
         res = self.client.post(
             add_url, {"user": self.stranger.id, "project": self.project.id}
         )
         assert res.status_code == 201
         assert Contributor.objects.filter(user=self.stranger).exists()
 
-        # Suppression du contributeur
+        # Suppression
         contrib = Contributor.objects.get(user=self.stranger)
         del_url = reverse("contributor-detail", args=[contrib.id])
         res = self.client.delete(del_url)
         assert res.status_code in [200, 204]
         assert not Contributor.objects.filter(id=contrib.id).exists()
 
-    # -------------------- ISSUES --------------------
+    # ------------------------------------------------------------------
+    # ISSUES
+    # ------------------------------------------------------------------
     def test_contributor_can_create_issue_but_not_stranger(self):
-        """Un contributeur peut créer une issue, un étranger non."""
+        """Vérifie qu’un contributeur peut créer une issue, pas un étranger."""
         url = reverse("issue-list")
 
-        # Création valide
+        # Création valide (contributeur)
         self.client.force_authenticate(user=self.contributor)
         res = self.client.post(
             url,
@@ -133,7 +148,7 @@ class TestAPIBehavior:
         assert res.status_code == 201
         assert Issue.objects.filter(title="Nouvelle tâche").exists()
 
-        # Utilisateur externe
+        # Échec pour utilisateur externe
         self.client.force_authenticate(user=self.stranger)
         res = self.client.post(
             url,
@@ -148,15 +163,15 @@ class TestAPIBehavior:
         assert res.status_code in [400, 403]
 
     def test_only_assignee_can_update_issue_status(self):
-        """Seul l’utilisateur assigné peut changer le statut."""
+        """Vérifie que seul l’assigné peut modifier le statut d’une issue."""
         url = reverse("issue-detail", args=[self.issue.id])
 
-        # L’assigné
+        # Assigné : modification autorisée
         self.client.force_authenticate(user=self.contributor)
         res = self.client.patch(url, {"status": "IN_PROGRESS"})
         assert res.status_code == 200
 
-        # Un autre contributeur
+        # Autre contributeur : modification refusée
         other = User.objects.create_user(
             username="other",
             password="pass123",
@@ -174,9 +189,14 @@ class TestAPIBehavior:
         res = self.client.patch(url, {"status": "FINISHED"})
         assert res.status_code == 403
 
-    # -------------------- COMMENTAIRES --------------------
+    # ------------------------------------------------------------------
+    # COMMENTAIRES
+    # ------------------------------------------------------------------
     def test_comment_permissions(self):
-        """Contributeur peut commenter/modifier/supprimer, pas un étranger."""
+        """
+        Vérifie que les contributeurs peuvent gérer leurs commentaires,
+        et que les utilisateurs externes ne le peuvent pas.
+        """
         list_url = reverse("comment-list")
         detail_url = reverse("comment-detail", args=[self.comment.id])
 
@@ -194,7 +214,7 @@ class TestAPIBehavior:
         )
         assert res.status_code == 200
 
-        # Un utilisateur externe ne peut pas modifier ni commenter
+        # Utilisateur externe : création et modification interdites
         self.client.force_authenticate(user=self.stranger)
         res = self.client.post(
             list_url,

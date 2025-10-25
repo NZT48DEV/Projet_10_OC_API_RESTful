@@ -1,18 +1,24 @@
+"""
+Définition des permissions personnalisées du module projects.
+Ces classes contrôlent l'accès aux projets, issues et commentaires
+en fonction du rôle et du lien entre l'utilisateur et la ressource.
+"""
+
 from rest_framework import permissions
 
 
 class IsContributor(permissions.BasePermission):
     """
-    Permission générale :
-    - Un utilisateur doit être contributeur du projet lié à la ressource
-      pour pouvoir y accéder.
-    - L’auteur du projet est considéré comme contributeur.
+    Vérifie que l'utilisateur est contributeur du projet associé.
+    L'auteur du projet est considéré comme contributeur.
     """
 
     def has_permission(self, request, view):
+        """Autorise uniquement les utilisateurs authentifiés."""
         return request.user and request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
+        """Vérifie l’appartenance du user au projet lié à l’objet."""
         user = request.user
 
         if hasattr(obj, "contributors"):
@@ -36,7 +42,14 @@ class IsContributor(permissions.BasePermission):
 
 
 class IsAuthorAndContributor(permissions.BasePermission):
+    """
+    Autorise :
+    - la lecture aux contributeurs du projet,
+    - l'écriture uniquement à l'auteur de la ressource.
+    """
+
     def has_permission(self, request, view):
+        """Autorise les requêtes authentifiées selon la méthode HTTP."""
         if request.method == "POST":
             return request.user and request.user.is_authenticated
         if request.method in permissions.SAFE_METHODS:
@@ -44,8 +57,10 @@ class IsAuthorAndContributor(permissions.BasePermission):
         return True
 
     def has_object_permission(self, request, view, obj):
+        """Vérifie les droits selon la méthode et le lien à l'objet."""
         user = request.user
 
+        # Lecture seule : doit être contributeur
         if request.method in permissions.SAFE_METHODS:
             if hasattr(obj, "contributors"):
                 return obj.contributors.filter(user=user).exists()
@@ -53,18 +68,25 @@ class IsAuthorAndContributor(permissions.BasePermission):
                 return obj.project.contributors.filter(user=user).exists()
             return False
 
+        # Écriture : réservée à l’auteur
         author_attr = getattr(obj, "author_user", None)
-
         if author_attr is None and hasattr(obj, "project"):
             return obj.project.author_user == user
-
         return author_attr == user
 
 
 class IsAuthorOrProjectContributorReadOnly(permissions.BasePermission):
+    """
+    Autorise :
+    - la lecture aux contributeurs et à l’auteur du projet,
+    - la modification uniquement à l’auteur ou à l’utilisateur assigné.
+    """
+
     def has_object_permission(self, request, view, obj):
+        """Contrôle les droits d'accès selon le contexte d’objet."""
         user = request.user
 
+        # Lecture : auteur, contributeur ou assigné
         if request.method in permissions.SAFE_METHODS:
             if hasattr(obj, "issue"):
                 project = obj.issue.project

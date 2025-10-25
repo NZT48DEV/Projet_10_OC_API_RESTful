@@ -1,3 +1,9 @@
+"""
+Tests du système de cache de l'API SoftDesk.
+Couvre la mise en cache, l'invalidation et les gains de performance
+pour les projets et les issues.
+"""
+
 import time
 
 import pytest
@@ -10,15 +16,18 @@ from users.models import User
 pytestmark = pytest.mark.django_db
 
 
+# ---------------------------------------------------------------------
+# FIXTURES
+# ---------------------------------------------------------------------
 @pytest.fixture
 def api_client():
-    """Client API réutilisable pour tous les tests."""
+    """Crée un client API réutilisable pour les tests."""
     return APIClient()
 
 
 @pytest.fixture
 def user_setup():
-    """Création d’un utilisateur et de son projet pour chaque test."""
+    """Crée un utilisateur, un projet et une issue pour les tests."""
     user = User.objects.create_user(
         username="cache_tester",
         password="pass123",
@@ -35,8 +44,6 @@ def user_setup():
     Contributor.objects.create(
         user=user, project=project, permission="AUTHOR", role="Auteur"
     )
-
-    # Issue par défaut pour tests
     Issue.objects.create(
         title="Issue Test",
         description="Issue initiale",
@@ -46,68 +53,62 @@ def user_setup():
         author_user=user,
         assignee_user=user,
     )
-
     return {"user": user, "project": project}
 
 
 @pytest.fixture(autouse=True)
 def clear_cache():
-    """Purge automatique du cache avant et après chaque test."""
+    """Vide le cache avant et après chaque test."""
     cache.clear()
     yield
     cache.clear()
 
 
 # ---------------------------------------------------------------------
-#  TESTS DU CACHE PROJETS
+# TESTS DU CACHE PROJETS
 # ---------------------------------------------------------------------
 def test_project_cache_created_and_used(api_client, user_setup):
-    """Vérifie que le cache est créé à la 1ʳᵉ requête et réutilisé ensuite."""
+    """Vérifie la création et la réutilisation du cache projet."""
     client = api_client
     user = user_setup["user"]
     client.force_authenticate(user=user)
     url = reverse("project-list")
     cache_key = f"user_projects_{user.id}"
 
-    assert (
-        cache.get(cache_key) is None
-    ), "Le cache devrait être vide au départ."
+    assert cache.get(cache_key) is None, "Le cache doit être vide au départ."
 
     # Première requête : création du cache
     client.get(url)
     assert cache.get(cache_key) is not None, "Le cache n’a pas été créé."
 
-    # Deuxième requête : lecture depuis le cache (pas d’erreur attendue)
+    # Deuxième requête : doit réutiliser le cache
     client.get(url)
     assert cache.get(cache_key) is not None, "Le cache n’a pas été réutilisé."
 
 
 def test_project_cache_invalidation_on_create(api_client, user_setup):
-    """Vérifie que le cache projet est invalidé après création."""
+    """Vérifie que le cache projet est supprimé après création d’un projet."""
     client = api_client
     user = user_setup["user"]
     client.force_authenticate(user=user)
     url = reverse("project-list")
     cache_key = f"user_projects_{user.id}"
 
-    # Préremplir le cache
     cache.set(cache_key, ["cached_project"], timeout=600)
-    assert cache.get(cache_key), "Cache initial manquant."
+    assert cache.get(cache_key), "Le cache initial est manquant."
 
-    # Création d’un nouveau projet → doit invalider le cache
+    # Création d’un projet : doit invalider le cache
     client.post(
         url,
         {"title": "Projet Nouveau", "description": "desc", "type": "BACK_END"},
         format="json",
     )
 
-    assert (
-        cache.get(cache_key) is None
-    ), "Le cache projet n’a pas été invalidé."
+    assert cache.get(cache_key) is None, "Le cache projet n’a pas été vidé."
 
 
 def test_project_cache_performance_gain(api_client, user_setup):
-    """Compare le temps d’exécution entre cache froid et cache chaud."""
+    """Compare les temps d’accès avec et sans cache."""
     client = api_client
     user = user_setup["user"]
     client.force_authenticate(user=user)
@@ -124,28 +125,23 @@ def test_project_cache_performance_gain(api_client, user_setup):
     second_duration = time.perf_counter() - start
 
     print(
-        f"\n 1er appel : {first_duration:.6f}s | "
-        f"2e appel (cache) : {second_duration:.6f}s"
+        f"\nPremière requête : {first_duration:.6f}s | "
+        f"Seconde (cache) : {second_duration:.6f}s"
     )
 
-    # Si le temps est inférieur à 0.05s, on considère que c’est trop rapide pour juger
     if first_duration < 0.05:
-        pytest.skip(
-            "Trop rapide pour mesurer un gain de cache fiable (<50 ms)"
-        )
+        pytest.skip("Durée trop courte pour mesurer un gain significatif.")
 
-    # Vérifie que la 2e requête est au moins 2x plus rapide
-    assert second_duration < first_duration * 0.5, (
-        f"Le cache n’a pas amélioré les performances "
-        f"({first_duration:.4f}s → {second_duration:.4f}s)"
-    )
+    assert (
+        second_duration < first_duration * 0.5
+    ), f"Aucun gain notable : {first_duration:.4f}s → {second_duration:.4f}s"
 
 
 # ---------------------------------------------------------------------
-#  TESTS DU CACHE ISSUES
+# TESTS DU CACHE ISSUES
 # ---------------------------------------------------------------------
 def test_issue_cache_created_and_used(api_client, user_setup):
-    """Vérifie que le cache des issues est bien créé et réutilisé."""
+    """Vérifie la création et la réutilisation du cache des issues."""
     client = api_client
     user, project = user_setup["user"], user_setup["project"]
     client.force_authenticate(user=user)
@@ -162,18 +158,17 @@ def test_issue_cache_created_and_used(api_client, user_setup):
 
 
 def test_issue_cache_invalidation_on_create(api_client, user_setup):
-    """Vérifie que le cache des issues est invalidé après création."""
+    """Vérifie la suppression du cache des issues après création."""
     client = api_client
     user, project = user_setup["user"], user_setup["project"]
     client.force_authenticate(user=user)
     url = reverse("issue-list")
     cache_key = f"issues_user_{user.id}_project_{project.id}"
 
-    # Préremplir le cache
     cache.set(cache_key, ["cached_issue"], timeout=600)
-    assert cache.get(cache_key), "Cache initial manquant."
+    assert cache.get(cache_key), "Le cache initial est manquant."
 
-    # Création d’une nouvelle issue → doit invalider le cache
+    # Création d’une issue : doit invalider le cache
     client.post(
         url,
         {
@@ -189,4 +184,4 @@ def test_issue_cache_invalidation_on_create(api_client, user_setup):
 
     assert (
         cache.get(cache_key) is None
-    ), "Le cache des issues n’a pas été invalidé."
+    ), "Le cache des issues n’a pas été vidé."

@@ -1,3 +1,8 @@
+"""
+Définition des routes du module api_auth.
+Inclut les vues de connexion, déconnexion, inscription et la page d'accueil.
+"""
+
 from django.urls import include, path
 
 from .views import (
@@ -8,14 +13,14 @@ from .views import (
 )
 
 urlpatterns = [
-    # Page d'accueil
+    # Page d'accueil du module d'authentification
     path("", api_auth_home, name="api_auth_home"),
-    # Inscription
+    # Route d'inscription
     path("register/", RegisterView.as_view(), name="register"),
-    # Connexion personnalisée
+    # Route de connexion personnalisée
     path("login/", CustomLoginView.as_view(), name="login"),
-    # Déconnexion avec redirection vers /api-auth/login/
+    # Route de déconnexion avec redirection vers /api-auth/login/
     path("logout/", CustomLogoutView.as_view(), name="logout"),
-    # Interface DRF classique (login/logout HTML)
+    # Interface d'authentification HTML de Django REST Framework
     path("", include("rest_framework.urls")),
 ]

@@ -1,3 +1,9 @@
+"""
+Définition des serializers du module projects.
+Gère la sérialisation des entités Project, Contributor, Issue et Comment
+pour la communication entre l’API et le client.
+"""
+
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.urls import reverse
@@ -6,14 +12,13 @@ from rest_framework import serializers
 
 User = get_user_model()
 
-
-# -----------------------------
-#  SERIALIZERS CONTRIBUTEUR
-# -----------------------------
+# ---------------------------------------------------------------------
+# CONTRIBUTEURS
+# ---------------------------------------------------------------------
 
 
 class ContributorListSerializer(serializers.ModelSerializer):
-    """Serializer léger pour lister les contributeurs."""
+    """Serializer simplifié pour la liste des contributeurs."""
 
     username = serializers.ReadOnlyField(source="user.username")
 
@@ -23,7 +28,7 @@ class ContributorListSerializer(serializers.ModelSerializer):
 
 
 class ContributorDetailSerializer(serializers.ModelSerializer):
-    """Serializer complet pour les contributeurs."""
+    """Serializer détaillé pour la gestion des contributeurs."""
 
     user = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(is_superuser=False)
@@ -54,10 +59,11 @@ class ContributorDetailSerializer(serializers.ModelSerializer):
         validators = []
 
     def get_is_author(self, obj):
+        """Renvoie True si le contributeur est l’auteur du projet."""
         return obj.permission == "AUTHOR"
 
     def get_delete_contributeur_url(self, obj):
-        """Retourne l'URL de suppression sauf si l'utilisateur est auteur."""
+        """Construit l’URL de suppression sauf pour l’auteur."""
         if obj.permission == "AUTHOR":
             return None
         request = self.context.get("request")
@@ -66,7 +72,7 @@ class ContributorDetailSerializer(serializers.ModelSerializer):
         return f"/api/contributors/{obj.id}/"
 
     def __init__(self, *args, **kwargs):
-        """Filtrage dynamique pour limiter les choix côté API."""
+        """Filtre les choix utilisateur et projet selon le contexte."""
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request and not request.user.is_superuser:
@@ -79,13 +85,13 @@ class ContributorDetailSerializer(serializers.ModelSerializer):
             ).exclude(id=user.id)
 
 
-# -----------------------------
-#  SERIALIZERS PROJET
-# -----------------------------
+# ---------------------------------------------------------------------
+# PROJETS
+# ---------------------------------------------------------------------
 
 
 class ProjectListSerializer(serializers.ModelSerializer):
-    """Serializer léger pour les projets."""
+    """Serializer simplifié pour la liste des projets."""
 
     author_username = serializers.ReadOnlyField(source="author_user.username")
 
@@ -95,7 +101,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
 
 class ProjectDetailSerializer(serializers.ModelSerializer):
-    """Serializer détaillé pour un projet."""
+    """Serializer détaillé pour les projets."""
 
     url = serializers.HyperlinkedIdentityField(
         view_name="project-detail", lookup_field="pk", read_only=True
@@ -120,13 +126,13 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         ]
 
 
-# -----------------------------
-#  SERIALIZERS ISSUE
-# -----------------------------
+# ---------------------------------------------------------------------
+# ISSUES
+# ---------------------------------------------------------------------
 
 
 class IssueListSerializer(serializers.ModelSerializer):
-    """Serializer léger pour les issues."""
+    """Serializer simplifié pour la liste des issues."""
 
     author_username = serializers.ReadOnlyField(source="author_user.username")
 
@@ -136,13 +142,11 @@ class IssueListSerializer(serializers.ModelSerializer):
 
 
 class IssueDetailSerializer(serializers.ModelSerializer):
-    """Serializer détaillé pour une issue."""
+    """Serializer complet pour la gestion des issues."""
 
     author_username = serializers.ReadOnlyField(source="author_user.username")
     assignee_user = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        required=False,
-        allow_null=True,
+        queryset=User.objects.all(), required=False, allow_null=True
     )
     assignee_username = serializers.ReadOnlyField(
         source="assignee_user.username"
@@ -170,7 +174,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ["author_user", "created_time"]
 
     def __init__(self, *args, **kwargs):
-        """Restreint les utilisateurs assignables aux contributeurs du projet."""
+        """Restreint les utilisateurs assignables aux contributeurs."""
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request and request.user:
@@ -179,9 +183,8 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             )
 
     def get_filtered_users(self, request):
-        """Renvoie la liste des utilisateurs assignables."""
+        """Renvoie la liste des utilisateurs assignables à une issue."""
         project = None
-
         if self.instance and getattr(self.instance, "project", None):
             project = self.instance.project
         else:
@@ -201,13 +204,13 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         return User.objects.filter(id=request.user.id)
 
 
-# -----------------------------
-#  SERIALIZERS COMMENTAIRE
-# -----------------------------
+# ---------------------------------------------------------------------
+# COMMENTAIRES
+# ---------------------------------------------------------------------
 
 
 class CommentListSerializer(serializers.ModelSerializer):
-    """Serializer léger pour les commentaires."""
+    """Serializer simplifié pour la liste des commentaires."""
 
     author_username = serializers.ReadOnlyField(source="author_user.username")
     issue_url = serializers.HyperlinkedRelatedField(
@@ -243,24 +246,23 @@ class CommentDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ["author_user", "created_time", "uuid"]
 
     def __init__(self, *args, **kwargs):
-        """Filtre les issues selon les droits du contributeur."""
+        """Filtre les issues accessibles à l’utilisateur courant."""
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
-
         if request and request.user and not request.user.is_superuser:
-            user = request.user
-            self.fields["issue"].queryset = self.get_filtered_issues(user)
+            self.fields["issue"].queryset = self.get_filtered_issues(
+                request.user
+            )
 
     def get_filtered_issues(self, user):
         """Renvoie les issues accessibles à l’utilisateur."""
-        from projects.models import Issue
-
         return Issue.objects.filter(
             models.Q(project__contributors__user=user)
             | models.Q(project__author_user=user)
         ).distinct()
 
     def get_issue_url(self, obj):
+        """Construit l’URL complète d’une issue associée."""
         request = self.context.get("request")
         if request and obj.issue:
             url = reverse("issue-detail", args=[obj.issue.id])
