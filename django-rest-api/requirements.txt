@@ -34,7 +34,7 @@ pathspec==0.12.1
 platformdirs==4.4.0
 pluggy==1.6.0
 pre_commit==4.3.0
-psycopg==3.2.11
+psycopg==3.2.12
 psycopg-binary==3.2.11
 pycodestyle==2.14.0
 pycparser==2.23
