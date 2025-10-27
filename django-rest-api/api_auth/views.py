@@ -5,23 +5,24 @@ Gère l'inscription, la connexion, la déconnexion et la page d'accueil.
 
 from django.contrib.auth.views import LoginView, LogoutView
 from django.shortcuts import redirect, render
-from rest_framework import generics, status
+from drf_spectacular.utils import extend_schema
+from rest_framework import status
 from rest_framework.response import Response
-from users.models import User
+from rest_framework.views import APIView
 from users.serializers import UserDetailSerializer
 
 from .permissions import IsNotAuthenticated
+from .schema_docs import register_get_schema, register_post_schema
 
 
-class RegisterView(generics.CreateAPIView):
+class RegisterView(APIView):
     """
     Permet à un utilisateur non authentifié de créer un nouveau compte.
     """
 
-    queryset = User.objects.all()
-    serializer_class = UserDetailSerializer
     permission_classes = [IsNotAuthenticated]
 
+    @extend_schema(**register_get_schema)
     def get(self, request, *args, **kwargs):
         """Empêche les requêtes GET sur la route d'inscription."""
         return Response(
@@ -29,13 +30,20 @@ class RegisterView(generics.CreateAPIView):
             status=status.HTTP_200_OK,
         )
 
-    def create(self, request, *args, **kwargs):
+    @extend_schema(**register_post_schema)
+    def post(self, request, *args, **kwargs):
         """Crée un utilisateur et renvoie un message de confirmation."""
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
+        serializer = UserDetailSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Crée l’utilisateur
+        serializer.save()
         user = serializer.instance
+
         return Response(
             {
                 "message": (
@@ -45,15 +53,11 @@ class RegisterView(generics.CreateAPIView):
                 "user": serializer.data,
             },
             status=status.HTTP_201_CREATED,
-            headers=headers,
         )
 
 
 class CustomLoginView(LoginView):
-    """
-    Vue de connexion personnalisée.
-    Redirige l'utilisateur authentifié vers la page principale.
-    """
+    """Vue de connexion personnalisée."""
 
     template_name = "rest_framework/login.html"
     redirect_authenticated_user = True
@@ -70,9 +74,7 @@ class CustomLoginView(LoginView):
 
 
 class CustomLogoutView(LogoutView):
-    """
-    Déconnecte l'utilisateur et redirige vers la page de connexion.
-    """
+    """Déconnecte l'utilisateur et redirige vers la page de connexion."""
 
     def dispatch(self, request, *args, **kwargs):
         """Exécute la déconnexion et redirige vers /api-auth/login/."""
@@ -81,8 +83,5 @@ class CustomLogoutView(LogoutView):
 
 
 def api_auth_home(request):
-    """
-    Page d'accueil du module api_auth.
-    Affiche les liens de connexion et d'inscription.
-    """
+    """Page d'accueil du module api_auth."""
     return render(request, "api_auth/index.html")

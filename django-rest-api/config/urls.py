@@ -1,11 +1,16 @@
 """
 Définition des routes principales du projet SoftDesk.
-Regroupe les endpoints d'administration, d'API, d'authentification et OAuth2.
+Regroupe les endpoints d'administration, d'API, d'authentification, OAuth2 et documentation.
 """
 
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import include, path
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 
 urlpatterns = [
     # Interface d’administration Django
@@ -18,6 +23,18 @@ urlpatterns = [
     path("api-auth/", include("api_auth.urls")),
     # OAuth2 Provider : token, refresh, revoke, introspect
     path("o/", include("oauth2_provider.urls", namespace="oauth2_provider")),
+    # Documentation OpenAPI & interfaces Swagger / ReDoc
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
+    path(
+        "api/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="redoc",
+    ),
     # Redirection par défaut vers la page d’authentification
     path("", lambda request: redirect("/api-auth/")),
 ]

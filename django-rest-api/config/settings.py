@@ -34,8 +34,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_extensions",
     "rest_framework",
     "oauth2_provider",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
     "api_auth",
     "users",
     "projects",
@@ -149,6 +152,7 @@ SESSION_COOKIE_SAMESITE = "Lax"
 # REST FRAMEWORK
 # ---------------------------------------------------------------------
 REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
@@ -157,7 +161,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "oauth2_provider.contrib.rest_framework.OAuth2Authentication",
-        "rest_framework.authentication.SessionAuthentication",
+        # "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
@@ -189,6 +193,64 @@ CACHES = {
         "TIMEOUT": 600,
     }
 }
+
+# ---------------------------------------------------------------------
+# DOCUMENTATION
+# ---------------------------------------------------------------------
+SPECTACULAR_SETTINGS = {
+    "TITLE": "SoftDesk API",
+    "DESCRIPTION": (
+        "API REST sécurisée permettant la gestion de projets, issues "
+        "et commentaires.\n\n"
+        "Authentification via **OAuth2 (Bearer Token)**. "
+        "Chaque requête vers une ressource protégée doit inclure :\n\n"
+        "`Authorization: Bearer <access_token>`"
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "CONTACT": {"email": "support@softdesk.io"},
+    "LICENSE": {"name": "MIT"},
+    "SCHEMA_PATH_PREFIX": "/api",
+    # --- Sécurité OAuth2 ---
+    "SECURITY": [{"OAuth2": []}],
+    "OAUTH2_FLOWS": {
+        "password": {
+            "tokenUrl": "/o/token/",
+            "refreshUrl": "/o/token/",
+            "scopes": {
+                "read": "Lecture des données (GET).",
+                "write": "Création et modification (POST, PUT, PATCH).",
+                "delete": "Suppression des ressources (DELETE).",
+            },
+        },
+    },
+    # ✅ Force l’application du schéma OAuth2 sur toutes les vues
+    "AUTHENTICATION_WHITELIST": [],  # désactive les overrides DRF
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "OAuth2": {
+                "type": "oauth2",
+                "flows": {
+                    "password": {
+                        "tokenUrl": "/o/token/",
+                        "refreshUrl": "/o/token/",
+                        "scopes": {
+                            "read": "Lecture des données",
+                            "write": "Écriture / modification",
+                            "delete": "Suppression",
+                        },
+                    }
+                },
+            }
+        }
+    },
+    # --- Hook pour renommer le tag api-auth ---
+    "POSTPROCESSING_HOOKS": [
+        "utils.openapi_hooks.rename_auth_tag",
+    ],
+}
+
 
 # ---------------------------------------------------------------------
 # CONFIGURATION PAR DÉFAUT

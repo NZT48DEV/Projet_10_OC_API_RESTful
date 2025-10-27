@@ -1,4 +1,5 @@
 import base64
+import json
 from urllib.parse import urlencode
 
 import pytest
@@ -74,18 +75,39 @@ class TestApiAuth:
         res = self.client.post(
             reverse("register"), self.user_data, format="json"
         )
-
         assert res.status_code == status.HTTP_201_CREATED
         assert "message" in res.data and "créé" in res.data["message"].lower()
         assert User.objects.filter(username="newuser").exists()
 
-    def test_authenticated_user_cannot_register_again(self):
-        """Empêche un utilisateur déjà connecté de créer un autre compte."""
+    def test_register_invalid_data_returns_400(self):
+        """Vérifie qu'une inscription invalide renvoie bien une erreur 400."""
+        invalid_data = {
+            "username": "",
+            "email": "not_an_email",
+            "password": "",
+            "age": 22,
+            "can_be_contacted": False,
+            "can_data_be_shared": True,
+        }
+        res = self.client.post(
+            reverse("register"), invalid_data, format="json"
+        )
+
+        assert res.status_code == status.HTTP_400_BAD_REQUEST
+        assert "errors" in res.data
+        assert "username" in res.data["errors"]
+        assert "password" in res.data["errors"]
+
+    def test_authenticated_user_cannot_register_returns_403(self):
+        """Empêche un utilisateur déjà connecté de créer un autre compte (403 attendu)."""
         self.client.force_authenticate(user=self.user)
         res = self.client.post(
             reverse("register"), self.user_data, format="json"
         )
-        assert res.status_code in [403, 405]
+
+        assert res.status_code == status.HTTP_403_FORBIDDEN
+        assert "detail" in res.data
+        assert "déjà connecté" in res.data["detail"].lower()
         self.client.logout()
 
     def test_register_get_returns_help_message(self):
@@ -93,6 +115,37 @@ class TestApiAuth:
         res = self.client.get(reverse("register"))
         assert res.status_code == 200
         assert "Utilisez POST" in res.data["detail"]
+
+    # ---------- Tests de documentation OpenAPI ----------
+
+    def test_openapi_register_schema_includes_expected_responses(self):
+        """Vérifie que la doc OpenAPI inclut bien les codes 201, 400 et 403 pour /api-auth/register/."""
+        schema_url = reverse("schema")
+        res = self.client.get(schema_url, HTTP_ACCEPT="application/json")
+
+        content_type = res.headers.get("Content-Type", "")
+        assert res.status_code == 200
+        assert (
+            "openapi" in content_type.lower() or "json" in content_type.lower()
+        )
+
+        schema = json.loads(res.content.decode())
+
+        paths = schema.get("paths", {})
+        register_path = next(
+            (p for p in paths if "api-auth/register" in p), None
+        )
+        assert (
+            register_path
+        ), "L'endpoint /api-auth/register/ n'est pas présent dans le schéma OpenAPI."
+
+        post_method = paths[register_path].get("post", {})
+        responses = post_method.get("responses", {})
+
+        for code in ("201", "400", "403"):
+            assert (
+                code in responses
+            ), f"Le code {code} est manquant dans la doc OpenAPI pour /api-auth/register/."
 
     # ---------- Tests de connexion/déconnexion ----------
 

@@ -33,6 +33,7 @@ Elle permet la gestion de **projets collaboratifs**, **issues**, et **commentair
 - 🧪 **Tests unitaires** (Pytest)
 - 🧰 **Pipeline Pre-commit** (Black, Flake8, Isort)
 - 🧱 **CI/CD GitHub Actions**
+- 📘 **Documentation interactive** avec Swagger & ReDoc (via `drf-spectacular`)
 - 🔍 **Surveillance sécurité** via **Dependabot**
 
 ---
@@ -167,14 +168,33 @@ SoftDesk implémente le **grant type "Resource Owner Password Credentials"**, id
 
 ---
 
+## 📘 Documentation API (Swagger / ReDoc)
+
+La documentation interactive est générée automatiquement par
+**drf-spectacular** à partir des vues, serializers et permissions.
+
+### Endpoints disponibles
+
+| Type | URL | Description |
+|------|-----|-------------|
+| **Swagger UI** | `http://127.0.0.1:8000/api/docs/` | Interface interactive |
+| **ReDoc** | `http://127.0.0.1:8000/api/redoc/` | Documentation hiérarchisée |
+| **Schéma brut (OpenAPI JSON)** | `http://127.0.0.1:8000/api/schema/` | OpenAPI 3.0 JSON |
+
+> 💡 Astuce :
+> - Swagger est idéal pour **tester** les endpoints.
+> - ReDoc est idéal pour **lire** et **naviguer** proprement.
+
+---
+
 ## 🌐 Endpoints de l’API
 
 ### 🔑 Authentification (`/api-auth/`)
 
 | Méthode | Endpoint | Description |
 |----------|-----------|-------------|
-| `POST` | `/o/token/` | Obtenir un token d’accès |
-| `POST` | `/o/token/refresh/` | Rafraîchir un token expiré |
+| `POST` | `/o/token/` | Obtenir un token d’accès (grant_type=password) |
+| `POST` | `/o/token/` | Rafraîchir un token expiré (grant_type=refresh_token) |
 | `POST` | `/api-auth/register/` | Créer un compte utilisateur |
 | `POST` | `/api-auth/login/` | Connexion via interface HTML |
 | `GET` | `/api-auth/logout/` | Déconnexion et redirection |
