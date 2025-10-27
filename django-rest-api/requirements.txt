@@ -18,7 +18,7 @@ djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.28.0
 drf-spectacular-sidecar==2025.10.1
-filelock==3.19.1
+filelock==3.20.0
 flake8==7.3.0
 flake8-bugbear==24.12.12
 flake8-comprehensions==3.17.0
