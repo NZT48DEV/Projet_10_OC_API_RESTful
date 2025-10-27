@@ -17,7 +17,7 @@ djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 filelock==3.19.1
 flake8==7.3.0
-flake8-bugbear==24.12.12
+flake8-bugbear==25.10.21
 flake8-comprehensions==3.17.0
 git-filter-repo==2.47.0
 identify==2.6.15
