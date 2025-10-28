@@ -64,8 +64,7 @@ Elle permet la gestion de **projets collaboratifs**, **issues**, et **commentair
 │   ├── projects/                       # Projets, contributeurs, issues, commentaires
 │   ├── users/                          # Gestion des utilisateurs & RGPD
 │   ├── utils/                          # Outils (cache, fonctions utilitaires)
-│   ├── manage.py                       # Point d’entrée Django
-│   └── requirements.txt                # Dépendances du projet
+│   └── manage.py                       # Point d’entrée Django
 │
 ├── .pre-commit-config.yaml             # Pipeline de qualité (Black, Flake8, Isort)
 ├── pytest.ini                          # Configuration Pytest
@@ -73,7 +72,9 @@ Elle permet la gestion de **projets collaboratifs**, **issues**, et **commentair
 ├── .flake8                             # Règles du linter
 ├── .github/workflows/tests.yml         # Intégration continue
 ├── README.md                           # Présentation du projet
-└── SoftDesk_Progress_Report.md         # Journal d’avancement du projet
+├── Pipfile                             # Fichier principal de gestion des dépendances
+└── Pipfile.lock                        # Verrouillage exact des versions et empreintes        
+
 ```
 
 ---
@@ -90,16 +91,12 @@ git clone https://github.com/NZT48DEV/Projet_10_OC_API_RESTful.git
 pip install pipenv
 
 # Créer et activer l’environnement virtuel
-pipenv install -r requirements.txt
+pipenv install
 pipenv shell
 
 # Appliquer les migrations et lancer le serveur
 pipenv run python django-rest-api/manage.py migrate
 pipenv run python django-rest-api/manage.py runserver
-
-# Audit de sécurité 
-pipenv check
-
 ```
 
 ---
