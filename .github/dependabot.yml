@@ -1,7 +1,7 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
-    directory: "/django-rest-api"
+  - package-ecosystem: "pipenv"
+    directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
