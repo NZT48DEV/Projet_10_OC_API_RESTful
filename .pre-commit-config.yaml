@@ -25,3 +25,13 @@ repos:
           - flake8-bugbear
           - flake8-comprehensions
         stages: [pre-commit]
+
+  # Audit de sécurité avec Pipenv
+  - repo: local
+    hooks:
+      - id: pipenv-security-check
+        name: Vérification de sécurité Pipenv (OWASP A06)
+        entry: pipenv check --quiet
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

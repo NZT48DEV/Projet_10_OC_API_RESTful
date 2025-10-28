@@ -18,6 +18,14 @@ django-rest-api/db.sqlite3-journal
 # Logs et fichiers temporaires
 *.log
 local_settings.py
+*.pot~
+*.tmp
+*.bak
+
+# Fichiers de cache Django / REST
+cache/
+tmp/
+*.sqlite3-journal
 
 # ========================================
 # 🧪 Tests / Coverage
@@ -52,6 +60,13 @@ Include/
 Lib/
 Scripts/
 pyvenv.cfg
+
+# Pipenv virtual environment (optionnel si créé dans le projet)
+Pipfile.lock.bak
+# Ne jamais commiter les environnements créés localement
+pipenv-*.log
+pipenv_env/
+safety_requirements_*.txt
 
 # ========================================
 # 🧱 Build / Packaging
@@ -117,6 +132,8 @@ htmlcov/
 *.pixi
 *.lock
 *.pypirc
+*~ 
+~$*
 
 # ========================================
 # ⚙️ Frameworks et outils tiers
@@ -134,8 +151,24 @@ cython_debug/
 # ========================================
 # 🧩 CI/CD
 # ========================================
-# Caches ou fichiers temporaires pouvant apparaître
 .pre-commit/
 .pre-commit-cache/
 .pre-commit-config.yaml~
 .pre-commit-hooks.yaml~
+
+# ========================================
+# 🔐 Pipenv / Audit Sécurité
+# ========================================
+# Ces fichiers doivent être ignorés ou régénérés automatiquement
+Pipfile.lock.bak
+safety.db
+safety.log
+pipenv-resolver-cache/
+safety_requirements_*.txt
+
+# ========================================
+# 🧾 Logs et rapports Django REST / Spectacular
+# ========================================
+*.json~
+openapi-schema.yaml
+spectacular-schema.yaml

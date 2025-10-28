@@ -80,15 +80,26 @@ Elle permet la gestion de **projets collaboratifs**, **issues**, et **commentair
 
 ---
 
-## ⚙️ Installation rapide
+## ⚙️ Installation avec Pipenv
 
 ```bash
+# Cloner le projet
 git clone https://github.com/NZT48DEV/Projet_10_OC_API_RESTful.git
-cd django-rest-api
-python -m venv .env
-source .env/bin/activate  # ou .env\Scripts\activate sous Windows
-pip install -r requirements.txt
-python manage.py migrate
+
+# Installer pipenv (si non installé)
+pip install pipenv
+
+# Créer et activer l’environnement virtuel
+pipenv install -r requirements.txt
+pipenv shell
+
+# Appliquer les migrations et lancer le serveur
+pipenv run python django-rest-api/manage.py migrate
+pipenv run python django-rest-api/manage.py runserver
+
+# Audit de sécurité 
+pipenv check
+
 ```
 
 ---
