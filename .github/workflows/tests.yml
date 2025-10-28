@@ -45,14 +45,15 @@ jobs:
       - name: Install dependencies via Pipenv
         run: |
           cd django-rest-api
+          pipenv --python $(which python)
           pipenv install --dev --deploy
 
-      - name: 🗄️ Run migrations
+      - name: Run migrations
         run: |
           cd django-rest-api
           pipenv run python manage.py migrate --noinput
 
-      - name: 🧪 Run Pytest
+      - name: Run Pytest
         run: |
           cd django-rest-api
           pipenv run pytest -q --disable-warnings --maxfail=1 --nomigrations
