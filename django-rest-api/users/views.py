@@ -4,6 +4,7 @@ Gèrent la gestion des utilisateurs, leurs droits d’accès et
 la consultation du profil personnel (/me/).
 """
 
+from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
@@ -59,6 +60,17 @@ class UserViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Action non autorisée.")
         instance.delete()
 
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "example": {
+                    "message": "Le compte 'username' a bien été supprimé avec succès.",
+                    "status": "success",
+                },
+            }
+        }
+    )
     def destroy(self, request, *args, **kwargs):
         """Supprime un compte utilisateur et confirme la suppression."""
         instance = self.get_object()

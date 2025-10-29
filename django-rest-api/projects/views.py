@@ -9,6 +9,7 @@ from collections import defaultdict
 
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
+from drf_spectacular.utils import extend_schema
 from projects.models import Comment, Contributor, Issue, Project
 from projects.pagination import ContributorProjectPagination
 from projects.permissions import (
@@ -128,6 +129,17 @@ class ProjectViewSet(viewsets.ModelViewSet):
             headers=headers,
         )
 
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "example": {
+                    "message": "Le projet '{title}' et ses données associées ont été supprimés.",
+                    "status": "success",
+                },
+            }
+        }
+    )
     def destroy(self, request, *args, **kwargs):
         """Supprime un projet et nettoie le cache associé."""
         instance = self.get_object()
@@ -233,6 +245,17 @@ class ContributorViewSet(viewsets.ModelViewSet):
                 {"detail": "Erreur lors de la création du contributeur."}
             )
 
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "example": {
+                    "message": "Le contributeur '{username}' a été retiré du projet.",
+                    "status": "success",
+                },
+            }
+        }
+    )
     def destroy(self, request, *args, **kwargs):
         """Supprime un contributeur et purge le cache."""
         instance = self.get_object()
@@ -346,6 +369,17 @@ class IssueViewSet(viewsets.ModelViewSet):
         data.update(serializer.data)
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
 
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "example": {
+                    "message": "L’issue '{title}' a bien été supprimée.",
+                    "status": "success",
+                },
+            }
+        }
+    )
     def destroy(self, request, *args, **kwargs):
         """Supprime une issue et nettoie les caches associés."""
         instance = self.get_object()
@@ -464,10 +498,21 @@ class CommentViewSet(viewsets.ModelViewSet):
                 {"detail": "Un commentaire identique existe déjà."}
             )
 
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "example": {
+                    "message": "Le commentaire n°{id} a bien été supprimé avec succès.",
+                    "status": "success",
+                },
+            }
+        }
+    )
     def destroy(self, request, *args, **kwargs):
         """Supprime un commentaire et renvoie un message de confirmation."""
         instance = self.get_object()
-        comment_id = instance.id  # on garde l'id avant suppression
+        comment_id = instance.id
         self.perform_destroy(instance)
 
         return Response(
