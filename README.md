@@ -70,7 +70,7 @@ Elle permet la gestion de **projets collaboratifs**, **issues**, et **commentair
 ├── pytest.ini                          # Configuration Pytest
 ├── pyproject.toml                      # Configuration de formatage
 ├── .flake8                             # Règles du linter
-├── .github/workflows/tests.yml    # Intégration continue
+├── .github/workflows/tests.yml         # Intégration continue
 ├── README.md                           # Présentation du projet
 ├── Pipfile                             # Fichier principal de gestion des dépendances
 └── Pipfile.lock                        # Verrouillage exact des versions et empreintes        

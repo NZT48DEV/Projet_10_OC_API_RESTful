@@ -60,11 +60,18 @@ class UserViewSet(viewsets.ModelViewSet):
         instance.delete()
 
     def destroy(self, request, *args, **kwargs):
-        """Supprime un compte utilisateur avec confirmation HTTP 204."""
+        """Supprime un compte utilisateur et confirme la suppression."""
         instance = self.get_object()
+        username = instance.username
+
         self.perform_destroy(instance)
+
         return Response(
-            status=status.HTTP_204_NO_CONTENT,
+            {
+                "message": f"Le compte '{username}' a bien été supprimé avec succès.",
+                "status": "success",
+            },
+            status=status.HTTP_200_OK,
             content_type="application/json",
         )
 

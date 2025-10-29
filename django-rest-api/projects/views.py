@@ -465,10 +465,16 @@ class CommentViewSet(viewsets.ModelViewSet):
             )
 
     def destroy(self, request, *args, **kwargs):
-        """Supprime un commentaire et renvoie une réponse vide."""
+        """Supprime un commentaire et renvoie un message de confirmation."""
         instance = self.get_object()
+        comment_id = instance.id  # on garde l'id avant suppression
         self.perform_destroy(instance)
+
         return Response(
-            status=status.HTTP_204_NO_CONTENT,
+            {
+                "message": f"Le commentaire n°{comment_id} a bien été supprimé avec succès.",
+                "status": "success",
+            },
+            status=status.HTTP_200_OK,
             content_type="application/json",
         )
