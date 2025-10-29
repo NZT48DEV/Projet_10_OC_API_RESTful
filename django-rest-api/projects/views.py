@@ -56,7 +56,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         cached_projects = cache.get(cache_key)
         if cached_projects is not None:
+            print(f"Cache utilisé pour {cache_key}")
             return cached_projects
+
+        print(
+            f"Aucun cache trouvé pour {cache_key}, reconstruction en cours..."
+        )
 
         qs = (
             Project.objects.select_related("author_user")
@@ -67,6 +72,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
             qs = qs.filter(contributors__user=user)
 
         cache.set(cache_key, qs, timeout=600)
+        print(f"Cache créé pour {cache_key} (durée 600s)")
+
         return qs
 
     def list(self, request, *args, **kwargs):
