@@ -4,6 +4,8 @@ Inclut la validation de l’âge minimal et la gestion des consentements
 RGPD, avec un gestionnaire adapté pour les créations d’utilisateurs.
 """
 
+import uuid
+
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -60,8 +62,9 @@ class CustomUserManager(BaseUserManager):
 
 
 class User(AbstractUser):
-    """Modèle utilisateur personnalisé avec champs RGPD."""
+    """Modèle utilisateur personnalisé avec champs RGPD et UUID public."""
 
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     age = models.PositiveIntegerField(validators=[validate_age])
     can_be_contacted = models.BooleanField()
     can_data_be_shared = models.BooleanField()

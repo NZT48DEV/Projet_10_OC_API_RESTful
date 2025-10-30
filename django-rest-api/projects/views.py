@@ -5,11 +5,13 @@ pour les entités Project, Contributor, Issue et Comment.
 Incluent des optimisations via cache, select_related et prefetch_related.
 """
 
+import logging
+import uuid
 from collections import defaultdict
 
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from projects.models import Comment, Contributor, Issue, Project
 from projects.pagination import ContributorProjectPagination
 from projects.permissions import (
@@ -26,11 +28,15 @@ from projects.serializers import (
     ProjectDetailSerializer,
     ProjectListSerializer,
 )
+from projects.throttles import InviteThrottle
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from users.models import User
 from utils.cache_tools import safe_delete_pattern
+
+logger = logging.getLogger("projects.invites")
 
 
 # ---------------------------------------------------------------------
@@ -174,10 +180,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
 # CONTRIBUTEURS
 # ---------------------------------------------------------------------
 class ContributorViewSet(viewsets.ModelViewSet):
-    """Vue de gestion des contributeurs."""
+    """Vue de gestion des contributeurs (ajout via UUID sécurisé, suppression standard)."""
 
     permission_classes = [IsAuthenticated, IsAuthorAndContributor]
     pagination_class = ContributorProjectPagination
+    throttle_classes = []  # définies dynamiquement par action
 
     def get_serializer_class(self):
         """Choisit un serializer selon l’action en cours."""
@@ -227,32 +234,142 @@ class ContributorViewSet(viewsets.ModelViewSet):
             return Response([], status=status.HTTP_200_OK)
         return paginator.get_paginated_response(page)
 
-    def perform_create(self, serializer):
-        """Ajoute un contributeur avec le rôle adapté."""
-        project = serializer.validated_data.get("project")
-        user = serializer.validated_data.get("user")
-
-        if Contributor.objects.filter(user=user, project=project).exists():
-            raise ValidationError(
-                {"detail": "Cet utilisateur est déjà contributeur du projet."}
-            )
-
-        if project.author_user == user:
-            role = "Auteur et Contributeur du projet"
-            permission = "AUTHOR"
-        else:
-            role = "Contributeur"
-            permission = "CONTRIBUTOR"
-
-        try:
-            with transaction.atomic():
-                serializer.save(role=role, permission=permission)
-        except IntegrityError:
-            raise ValidationError(
-                {"detail": "Erreur lors de la création du contributeur."}
-            )
-
+    # ------------------------------------------------------------------
+    # AJOUT VIA BODY (UUID sécurisé)
+    # ------------------------------------------------------------------
     @extend_schema(
+        summary="Ajoute un contributeur via son UUID utilisateur (réponse uniforme)",
+        description="Ajoute silencieusement un contributeur sans divulguer d'information sur l'existence du compte.",
+        request={
+            "application/json": {
+                "example": {
+                    "project": 1,
+                    "user_uuid": "96085b35-cc7c-4cc8-b202-8ea5c5135bcd",
+                }
+            }
+        },
+        responses={
+            200: OpenApiResponse(description="Réponse uniforme."),
+            429: OpenApiResponse(description="Trop de tentatives."),
+            403: OpenApiResponse(description="Accès refusé."),
+        },
+    )
+    def create(self, request, *args, **kwargs):
+        """Ajout sécurisé de contributeur via UUID avec throttle et réponse uniforme."""
+
+        if not self._check_throttle(request):
+            return Response(
+                {"detail": "Trop de tentatives. Réessayez plus tard."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        project, user = self._validate_invite_params(request)
+        if not project or not user:
+            return self._uniform_response()
+
+        self._add_contributor_silently(project, user)
+        return self._uniform_response()
+
+    # ------------------------------------------------------------------
+    # Méthodes utilitaires privées
+    # ------------------------------------------------------------------
+
+    def _check_throttle(self, request):
+        """Vérifie la limite de tentatives d’ajout."""
+        throttle = InviteThrottle()
+        return throttle.allow_request(request, self)
+
+    def _log_invite_attempt(self, request, project_id, user_uuid):
+        """Log les tentatives d’ajout de contributeur."""
+        ip = request.META.get("REMOTE_ADDR") or request.META.get(
+            "HTTP_X_FORWARDED_FOR"
+        )
+        logger.info(
+            "invite_attempt",
+            extra={
+                "actor_id": request.user.id,
+                "actor_username": request.user.username,
+                "project_id": project_id,
+                "target_uuid": user_uuid,
+                "ip": ip,
+            },
+        )
+
+    def _validate_invite_params(self, request):
+        """Valide le projet et le UUID, et retourne (project, user) si tout est valide."""
+        project_id = request.data.get("project")
+        user_uuid = request.data.get("user_uuid")
+
+        self._log_invite_attempt(request, project_id, user_uuid)
+
+        # Vérifie que les deux paramètres sont fournis
+        if not project_id or not user_uuid:
+            return None, None
+
+        # Vérifie le projet
+        try:
+            project = Project.objects.get(pk=project_id)
+        except Project.DoesNotExist:
+            return None, None
+
+        # Vérifie les droits d'accès
+        if (
+            project.author_user != request.user
+            and not request.user.is_superuser
+        ):
+            return None, None
+
+        # Vérifie le format UUID et l’existence du user
+        try:
+            uuid.UUID(str(user_uuid))
+            user = User.objects.get(uuid=user_uuid)
+        except (ValueError, AttributeError, TypeError, User.DoesNotExist):
+            return None, None
+
+        return project, user
+
+    def _add_contributor_silently(self, project, user):
+        """Ajoute le contributeur si nécessaire, sans erreur si doublon."""
+        try:
+            if not Contributor.objects.filter(
+                user=user, project=project
+            ).exists():
+                with transaction.atomic():
+                    Contributor.objects.create(
+                        user=user,
+                        project=project,
+                        permission=(
+                            "AUTHOR"
+                            if project.author_user == user
+                            else "CONTRIBUTOR"
+                        ),
+                        role=(
+                            "Auteur et Contributeur du projet"
+                            if project.author_user == user
+                            else "Contributeur"
+                        ),
+                    )
+                    safe_delete_pattern(f"user_projects_{user.id}")
+                    safe_delete_pattern(f"issues_user_{user.id}_project_*")
+        except IntegrityError:
+            logger.exception(
+                "invite_db_error",
+                extra={"project": project.id, "user_uuid": user.uuid},
+            )
+
+    def _uniform_response(self):
+        """Renvoie une réponse uniforme pour préserver la confidentialité."""
+        return Response(
+            {"detail": "Si l'utilisateur existe, il a été ajouté ou invité."},
+            status=status.HTTP_200_OK,
+        )
+
+    # ------------------------------------------------------------------
+    # SUPPRESSION STANDARD (par ID)
+    # ------------------------------------------------------------------
+    @extend_schema(
+        summary="Supprime un contributeur par son ID",
+        description="Supprime un contributeur du projet de façon classique.",
         responses={
             200: {
                 "type": "object",
@@ -260,24 +377,31 @@ class ContributorViewSet(viewsets.ModelViewSet):
                     "message": "Le contributeur '{username}' a été retiré du projet.",
                     "status": "success",
                 },
-            }
-        }
+            },
+            403: OpenApiResponse(
+                description="Impossible de retirer l’auteur."
+            ),
+        },
     )
     def destroy(self, request, *args, **kwargs):
-        """Supprime un contributeur et purge le cache."""
+        """Supprime un contributeur par son ID (classique)."""
         instance = self.get_object()
         user = instance.user
 
-        self.perform_destroy(instance)
+        # Empêche la suppression de l’auteur du projet
+        if instance.permission == "AUTHOR":
+            return Response(
+                {"detail": "Impossible de retirer l’auteur du projet."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
+        self.perform_destroy(instance)
         safe_delete_pattern(f"user_projects_{user.id}")
         safe_delete_pattern(f"issues_user_{user.id}_project_*")
 
         return Response(
             {
-                "message": (
-                    f"Le contributeur '{user.username}' a été retiré du projet."
-                ),
+                "message": f"Le contributeur '{user.username}' a été retiré du projet.",
                 "status": "success",
             },
             status=status.HTTP_200_OK,
@@ -314,7 +438,11 @@ class IssueViewSet(viewsets.ModelViewSet):
             return cached_issues
 
         qs = Issue.objects.select_related(
-            "project", "project__author_user", "author_user", "assignee_user"
+            "project",
+            "project__author_user",
+            "author_user",
+            "assignee_contributor",
+            "assignee_contributor__user",
         ).distinct()
 
         if not user.is_superuser:
@@ -336,46 +464,86 @@ class IssueViewSet(viewsets.ModelViewSet):
             )
         return super().list(request, *args, **kwargs)
 
+    # ------------------------------------------------------------
+    # CREATE
+    # ------------------------------------------------------------
     def perform_create(self, serializer):
         """Crée une issue et valide les permissions associées."""
         user = self.request.user
         project = serializer.validated_data.get("project")
+        assignee_contributor = serializer.validated_data.get(
+            "assignee_contributor"
+        )
 
+        # Vérifie que l’auteur est contributeur du projet
         is_contrib = project.contributors.filter(user=user).exists()
         if not (is_contrib or project.author_user == user):
             raise PermissionDenied(
-                "Accès refusé : vous devez être contributeur d’un projet "
-                "pour créer une issue."
+                "Accès refusé : vous devez être contributeur d’un projet pour créer une issue."
             )
 
-        assignee = serializer.validated_data.get("assignee_user")
-        if (
-            assignee
-            and not project.contributors.filter(user=assignee).exists()
-        ):
+        # Vérifie que l’assigné fait bien partie du projet
+        if assignee_contributor and assignee_contributor.project != project:
             raise ValidationError(
-                {"detail": "L'utilisateur assigné doit être contributeur."}
+                {
+                    "detail": "Le contributeur assigné doit appartenir au même projet."
+                }
             )
 
-        serializer.save(author_user=user)
+        issue = serializer.save(author_user=user)
+
+        # Invalidation des caches liés
         safe_delete_pattern(f"issues_user_{user.id}_project_*")
+        safe_delete_pattern(f"issues_project_{project.id}")
+
+        return issue
 
     def create(self, request, *args, **kwargs):
         """Crée une issue avec message clair et lien d’assignation."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        issue = self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        issue = serializer.instance
-        assignee = issue.assignee_user
+
+        assignee = issue.assignee_contributor
         msg = f"Issue '{issue.title}' créée"
-        if assignee:
-            msg += f" et assignée à '{assignee.username}'"
+        if assignee and assignee.user:
+            msg += f" et assignée à '{assignee.user.username}'"
         msg += "."
+
         data = {"message": msg}
         data.update(serializer.data)
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
 
+    # ------------------------------------------------------------
+    # UPDATE
+    # ------------------------------------------------------------
+    def perform_update(self, serializer):
+        """Met à jour une issue en vérifiant que seul l’auteur ou l’assigné peut modifier."""
+        issue = self.get_object()
+        user = self.request.user
+
+        # Récupère le contributeur assigné (actualisé)
+        assignee_contributor = issue.assignee_contributor
+
+        # Vérifie que l'utilisateur est bien l'auteur ou l'assigné
+        if not (
+            issue.author_user == user
+            or (assignee_contributor and assignee_contributor.user == user)
+        ):
+            raise PermissionDenied(
+                "Seul l’auteur ou l’assigné peut modifier cette issue."
+            )
+
+        serializer.save()
+
+        # Invalidation du cache après modification
+        safe_delete_pattern(f"issues_user_{user.id}_project_*")
+        safe_delete_pattern(f"issues_project_{issue.project.id}")
+
+    # ------------------------------------------------------------
+    # DELETE
+    # ------------------------------------------------------------
     @extend_schema(
         responses={
             200: {
@@ -392,12 +560,13 @@ class IssueViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         title = instance.title
         project_id = instance.project_id
-        user = request.user
+        user_id = request.user.id
 
         self.perform_destroy(instance)
 
-        safe_delete_pattern(f"issues_user_{user.id}_project_{project_id}")
-        safe_delete_pattern(f"issues_user_{user.id}_project_all")
+        # Invalidation du cache
+        safe_delete_pattern(f"issues_user_{user_id}_project_*")
+        safe_delete_pattern(f"issues_project_{project_id}")
 
         return Response(
             {
@@ -431,7 +600,10 @@ class CommentViewSet(viewsets.ModelViewSet):
         """Charge les commentaires liés aux issues accessibles."""
         user = self.request.user
         qs = Comment.objects.select_related(
-            "issue", "issue__project", "issue__assignee_user", "author_user"
+            "issue",
+            "issue__project",
+            "issue__assignee_contributor",
+            "author_user",
         ).distinct()
         if user.is_superuser:
             return qs

@@ -161,8 +161,15 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "oauth2_provider.contrib.rest_framework.OAuth2Authentication",
-        # "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "user": "1000/day",
+        "anon": "50/day",
+        "invite": "5/minute",
+    },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
     "DATETIME_FORMAT": "%d/%m/%Y %H:%M",
@@ -225,7 +232,7 @@ SPECTACULAR_SETTINGS = {
             },
         },
     },
-    # ✅ Force l’application du schéma OAuth2 sur toutes les vues
+    # Force l’application du schéma OAuth2 sur toutes les vues
     "AUTHENTICATION_WHITELIST": [],  # désactive les overrides DRF
     "APPEND_COMPONENTS": {
         "securitySchemes": {
@@ -256,3 +263,54 @@ SPECTACULAR_SETTINGS = {
 # CONFIGURATION PAR DÉFAUT
 # ---------------------------------------------------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# ---------------------------------------------------------------------
+# LOGGING – Sécurité des invites / suppression de contributeurs
+# ---------------------------------------------------------------------
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": (
+                "[{asctime}] {levelname} " "[{name}:{lineno}] {message}"
+            ),
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        # Fichier dédié aux logs des invitations
+        "invites_file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(BASE_DIR, "logs", "invites.log"),
+            "maxBytes": 2 * 1024 * 1024,  # 2 MB max
+            "backupCount": 5,  # garde 5 fichiers de rotation
+            "formatter": "verbose",
+        },
+        # Console (utile pour debug local)
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+    },
+    "loggers": {
+        # Logger pour les tentatives d’ajout / suppression
+        "projects.invites": {
+            "handlers": ["invites_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Logger général Django
+        "django": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": True,
+        },
+    },
+}

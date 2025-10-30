@@ -95,14 +95,23 @@ class IsAuthorOrProjectContributorReadOnly(permissions.BasePermission):
             else:
                 return False
 
+            # L’utilisateur peut lire s’il est contributeur, auteur ou assigné
             return (
                 project.contributors.filter(user=user).exists()
                 or project.author_user == user
-                or getattr(obj, "assignee_user", None) == user
+                or (
+                    hasattr(obj, "assignee_contributor")
+                    and obj.assignee_contributor
+                    and obj.assignee_contributor.user == user
+                )
             )
 
         # Écriture : réservée à l’auteur ou à l’utilisateur assigné
-        if hasattr(obj, "assignee_user") and obj.assignee_user == user:
+        if (
+            hasattr(obj, "assignee_contributor")
+            and obj.assignee_contributor
+            and obj.assignee_contributor.user == user
+        ):
             return True
 
         return getattr(obj, "author_user", None) == user

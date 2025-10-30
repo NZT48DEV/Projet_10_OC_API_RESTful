@@ -115,11 +115,12 @@ class Issue(models.Model):
         on_delete=models.CASCADE,
         related_name="created_issues",
     )
-    assignee_user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+    assignee_contributor = models.ForeignKey(
+        Contributor,
         null=True,
-        related_name="assigned_issues",
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="issues_assigned",
     )
     project = models.ForeignKey(
         "projects.Project",
@@ -129,7 +130,12 @@ class Issue(models.Model):
     created_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("title", "project", "assignee_user")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["title", "project"],
+                name="unique_issue_title_per_project",
+            )
+        ]
         ordering = ["-created_time"]
         verbose_name = "Issue"
         verbose_name_plural = "Issues"

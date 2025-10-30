@@ -39,7 +39,7 @@ class IssueAdmin(admin.ModelAdmin):
         "title",
         "project",
         "author_user",
-        "assignee_user",
+        "assignee_contributor",
         "priority",
         "status",
     )

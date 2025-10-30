@@ -28,16 +28,13 @@ class ContributorListSerializer(serializers.ModelSerializer):
 
 
 class ContributorDetailSerializer(serializers.ModelSerializer):
-    """Serializer détaillé pour la gestion des contributeurs."""
+    """Serializer détaillé pour la gestion des contributeurs (ajout via UUID)."""
 
-    user = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_superuser=False)
-    )
+    user_uuid = serializers.UUIDField(write_only=True, required=True)
     username = serializers.ReadOnlyField(source="user.username")
     project_url = serializers.HyperlinkedRelatedField(
         source="project", view_name="project-detail", read_only=True
     )
-    delete_contributeur_url = serializers.SerializerMethodField()
     is_author = serializers.SerializerMethodField()
     created_time = serializers.DateTimeField(read_only=True)
 
@@ -45,34 +42,44 @@ class ContributorDetailSerializer(serializers.ModelSerializer):
         model = Contributor
         fields = [
             "id",
-            "user",
+            "user_uuid",
             "username",
             "project",
             "project_url",
             "permission",
             "role",
             "is_author",
-            "delete_contributeur_url",
             "created_time",
         ]
         read_only_fields = ["permission", "role"]
         validators = []
 
+    def validate_user_uuid(self, value):
+        """Valide l’existence du user à partir de l’UUID fourni."""
+        from users.models import User  # import local pour éviter les boucles
+
+        try:
+            user = User.objects.get(uuid=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Utilisateur introuvable.")
+        self._validated_user = user
+        return value
+
+    def create(self, validated_data):
+        """
+        Crée un contributeur avec l’utilisateur identifié par UUID.
+        Remplace le champ 'user_uuid' par l’instance utilisateur.
+        """
+        validated_data["user"] = self._validated_user
+        validated_data.pop("user_uuid", None)
+        return super().create(validated_data)
+
     def get_is_author(self, obj):
         """Renvoie True si le contributeur est l’auteur du projet."""
         return obj.permission == "AUTHOR"
 
-    def get_delete_contributeur_url(self, obj):
-        """Construit l’URL de suppression sauf pour l’auteur."""
-        if obj.permission == "AUTHOR":
-            return None
-        request = self.context.get("request")
-        if request:
-            return request.build_absolute_uri(f"/api/contributors/{obj.id}/")
-        return f"/api/contributors/{obj.id}/"
-
     def __init__(self, *args, **kwargs):
-        """Filtre les choix utilisateur et projet selon le contexte."""
+        """Filtre les choix projet selon le contexte de l’utilisateur."""
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request and not request.user.is_superuser:
@@ -80,9 +87,6 @@ class ContributorDetailSerializer(serializers.ModelSerializer):
             self.fields["project"].queryset = Project.objects.filter(
                 author_user=user
             )
-            self.fields["user"].queryset = User.objects.filter(
-                is_superuser=False
-            ).exclude(id=user.id)
 
 
 # ---------------------------------------------------------------------
@@ -135,24 +139,43 @@ class IssueListSerializer(serializers.ModelSerializer):
     """Serializer simplifié pour la liste des issues."""
 
     author_username = serializers.ReadOnlyField(source="author_user.username")
+    assignee_contributor_id = serializers.ReadOnlyField(
+        source="assignee_contributor.id"
+    )
+    assignee_contributor_username = serializers.ReadOnlyField(
+        source="assignee_contributor.user.username"
+    )
+    project_title = serializers.ReadOnlyField(source="project.title")
 
     class Meta:
         model = Issue
-        fields = ["id", "title", "status", "author_username"]
+        fields = [
+            "id",
+            "title",
+            "status",
+            "tag",
+            "priority",
+            "author_username",
+            "assignee_contributor_id",
+            "assignee_contributor_username",
+            "project_title",
+            "created_time",
+        ]
 
 
 class IssueDetailSerializer(serializers.ModelSerializer):
-    """Serializer complet pour la gestion des issues."""
+    """Serializer détaillé pour afficher ou modifier une issue."""
 
     author_username = serializers.ReadOnlyField(source="author_user.username")
-    assignee_user = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), required=False, allow_null=True
+    assignee_contributor = serializers.PrimaryKeyRelatedField(
+        queryset=Contributor.objects.all(),
+        required=False,
+        allow_null=True,
     )
-    assignee_username = serializers.ReadOnlyField(
-        source="assignee_user.username"
+    assignee_contributor_username = serializers.ReadOnlyField(
+        source="assignee_contributor.user.username"
     )
     project_title = serializers.ReadOnlyField(source="project.title")
-    created_time = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Issue
@@ -165,8 +188,8 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "status",
             "author_user",
             "author_username",
-            "assignee_user",
-            "assignee_username",
+            "assignee_contributor",
+            "assignee_contributor_username",
             "project",
             "project_title",
             "created_time",
@@ -174,34 +197,32 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ["author_user", "created_time"]
 
     def __init__(self, *args, **kwargs):
-        """Restreint les utilisateurs assignables aux contributeurs."""
+        """Restreint les contributeurs assignables à ceux du projet concerné."""
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request and request.user:
-            self.fields["assignee_user"].queryset = self.get_filtered_users(
-                request
+            self.fields["assignee_contributor"].queryset = (
+                self.get_filtered_contributors(request)
             )
 
-    def get_filtered_users(self, request):
-        """Renvoie la liste des utilisateurs assignables à une issue."""
+    def get_filtered_contributors(self, request):
+        """Retourne uniquement les contributeurs appartenant au projet."""
         project = None
+
+        # Si on modifie une issue existante
         if self.instance and getattr(self.instance, "project", None):
             project = self.instance.project
         else:
+            # Si on crée une nouvelle issue
             data = getattr(self, "initial_data", {})
             project_id = data.get("project")
             if project_id:
                 project = Project.objects.filter(id=project_id).first()
 
+        # On restreint aux contributeurs du projet + auteur du projet
         if project:
-            return User.objects.filter(
-                models.Q(
-                    id__in=project.contributors.values_list("user", flat=True)
-                )
-                | models.Q(id=project.author_user_id)
-            ).distinct()
-
-        return User.objects.filter(id=request.user.id)
+            return Contributor.objects.filter(project=project)
+        return Contributor.objects.none()
 
 
 # ---------------------------------------------------------------------

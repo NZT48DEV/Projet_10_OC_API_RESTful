@@ -20,8 +20,8 @@ class UserListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "age", "created_time"]
-        read_only_fields = ["id", "created_time"]
+        fields = ["uuid", "username", "age", "created_time"]
+        read_only_fields = ["uuid", "created_time"]
 
 
 # ---------------------------------------------------------------------
@@ -29,6 +29,8 @@ class UserListSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------
 class UserDetailSerializer(serializers.ModelSerializer):
     """Serializer détaillé pour la gestion complète du profil."""
+
+    uuid = serializers.UUIDField(read_only=True)
 
     username = serializers.CharField(
         min_length=3,
@@ -58,6 +60,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
+            "uuid",
             "id",
             "username",
             "email",
@@ -67,7 +70,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
             "can_data_be_shared",
             "created_time",
         ]
-        read_only_fields = ["id", "created_time"]
+        read_only_fields = ["uuid", "id", "created_time"]
 
     def create(self, validated_data):
         """Crée un utilisateur avec mot de passe hashé."""

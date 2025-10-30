@@ -27,7 +27,7 @@ def api_client():
 
 @pytest.fixture
 def user_setup():
-    """Crée un utilisateur, un projet et une issue pour les tests."""
+    """Crée un utilisateur, un projet, un contributeur et une issue pour les tests."""
     user = User.objects.create_user(
         username="cache_tester",
         password="pass123",
@@ -35,15 +35,20 @@ def user_setup():
         can_be_contacted=True,
         can_data_be_shared=False,
     )
+
     project = Project.objects.create(
         title="Projet Cache",
         description="desc",
         type="BACK_END",
         author_user=user,
     )
-    Contributor.objects.create(
+
+    # Création d’un contributeur (l'auteur du projet)
+    contributor = Contributor.objects.create(
         user=user, project=project, permission="AUTHOR", role="Auteur"
     )
+
+    # Création d’une issue assignée à ce contributeur
     Issue.objects.create(
         title="Issue Test",
         description="Issue initiale",
@@ -51,9 +56,10 @@ def user_setup():
         priority="LOW",
         project=project,
         author_user=user,
-        assignee_user=user,
+        assignee_contributor=contributor,
     )
-    return {"user": user, "project": project}
+
+    return {"user": user, "project": project, "contributor": contributor}
 
 
 @pytest.fixture(autouse=True)
@@ -160,7 +166,11 @@ def test_issue_cache_created_and_used(api_client, user_setup):
 def test_issue_cache_invalidation_on_create(api_client, user_setup):
     """Vérifie la suppression du cache des issues après création."""
     client = api_client
-    user, project = user_setup["user"], user_setup["project"]
+    user, project, contributor = (
+        user_setup["user"],
+        user_setup["project"],
+        user_setup["contributor"],
+    )
     client.force_authenticate(user=user)
     url = reverse("issue-list")
     cache_key = f"issues_user_{user.id}_project_{project.id}"
@@ -177,7 +187,7 @@ def test_issue_cache_invalidation_on_create(api_client, user_setup):
             "tag": "TASK",
             "priority": "HIGH",
             "project": project.id,
-            "assignee_user": user.id,
+            "assignee_contributor": contributor.id,
         },
         format="json",
     )

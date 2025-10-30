@@ -30,6 +30,12 @@ class ProjectModelTest(TestCase):
             type="BACK_END",
             author_user=cls.user,
         )
+        cls.contributor = Contributor.objects.create(
+            user=cls.user,
+            project=cls.project,
+            permission="AUTHOR",
+            role="Chef de projet",
+        )
 
     def test_project_str_and_creation(self):
         """Teste la création et la méthode __str__ du modèle Project."""
@@ -38,14 +44,8 @@ class ProjectModelTest(TestCase):
 
     def test_contributor_str_and_creation(self):
         """Teste la création et l’affichage d’un contributeur."""
-        contributor = Contributor.objects.create(
-            user=self.user,
-            project=self.project,
-            permission="AUTHOR",
-            role="Chef de projet",
-        )
-        self.assertEqual(contributor.permission, "AUTHOR")
-        self.assertIn("Chef de projet", str(contributor))
+        self.assertEqual(self.contributor.permission, "AUTHOR")
+        self.assertIn("Chef de projet", str(self.contributor))
 
     def test_issue_str_and_creation(self):
         """Teste la création et la méthode __str__ du modèle Issue."""
@@ -56,10 +56,11 @@ class ProjectModelTest(TestCase):
             priority="HIGH",
             project=self.project,
             author_user=self.user,
-            assignee_user=self.user,
+            assignee_contributor=self.contributor,  # ✅ nouveau champ
         )
         self.assertEqual(issue.status, "TODO")
         self.assertIn("Bug critique", str(issue))
+        self.assertEqual(issue.assignee_contributor.user.username, "testuser")
 
     def test_comment_str_and_creation(self):
         """Teste la création et la méthode __str__ du modèle Comment."""
@@ -70,7 +71,7 @@ class ProjectModelTest(TestCase):
             priority="MEDIUM",
             project=self.project,
             author_user=self.user,
-            assignee_user=self.user,
+            assignee_contributor=self.contributor,
         )
         comment = Comment.objects.create(
             description="Reproduit sur Android.",

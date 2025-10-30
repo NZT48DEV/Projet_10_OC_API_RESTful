@@ -172,3 +172,4 @@ safety_requirements_*.txt
 *.json~
 openapi-schema.yaml
 spectacular-schema.yaml
+logs/

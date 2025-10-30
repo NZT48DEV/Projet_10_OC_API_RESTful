@@ -50,13 +50,14 @@ class TestAPIBehavior:
             author_user=self.author,
         )
 
-        Contributor.objects.create(
+        # Contributeurs associés au projet
+        self.author_contrib = Contributor.objects.create(
             user=self.author,
             project=self.project,
             permission="AUTHOR",
             role="Auteur",
         )
-        Contributor.objects.create(
+        self.contributor_contrib = Contributor.objects.create(
             user=self.contributor,
             project=self.project,
             permission="CONTRIBUTOR",
@@ -71,7 +72,7 @@ class TestAPIBehavior:
             priority="HIGH",
             project=self.project,
             author_user=self.author,
-            assignee_user=self.contributor,
+            assignee_contributor=self.contributor_contrib,  # ✅ nouveau champ
         )
         self.comment = Comment.objects.create(
             description="Je vais corriger ce bug.",
@@ -111,18 +112,19 @@ class TestAPIBehavior:
         self.client.force_authenticate(user=self.author)
         add_url = reverse("contributor-list")
 
-        # Ajout
+        # Ajout avec user_uuid
         res = self.client.post(
-            add_url, {"user": self.stranger.id, "project": self.project.id}
+            add_url,
+            {"user_uuid": str(self.stranger.uuid), "project": self.project.id},
         )
-        assert res.status_code == 201
+        assert res.status_code in [200, 201], res.data
         assert Contributor.objects.filter(user=self.stranger).exists()
 
         # Suppression
         contrib = Contributor.objects.get(user=self.stranger)
         del_url = reverse("contributor-detail", args=[contrib.id])
         res = self.client.delete(del_url)
-        assert res.status_code in [200, 204]
+        assert res.status_code in [200, 204], res.data
         assert not Contributor.objects.filter(id=contrib.id).exists()
 
     # ------------------------------------------------------------------
@@ -142,7 +144,7 @@ class TestAPIBehavior:
                 "tag": "TASK",
                 "priority": "LOW",
                 "project": self.project.id,
-                "assignee_user": self.author.id,
+                "assignee_contributor": self.author_contrib.id,  # ✅
             },
         )
         assert res.status_code == 201
