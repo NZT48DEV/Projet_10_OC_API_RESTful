@@ -119,7 +119,7 @@ class Issue(models.Model):
         Contributor,
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="issues_assigned",
     )
     project = models.ForeignKey(

@@ -387,6 +387,7 @@ class ContributorViewSet(viewsets.ModelViewSet):
         """Supprime un contributeur par son ID (classique)."""
         instance = self.get_object()
         user = instance.user
+        project_id = instance.project.id
 
         # Empêche la suppression de l’auteur du projet
         if instance.permission == "AUTHOR":
@@ -396,8 +397,10 @@ class ContributorViewSet(viewsets.ModelViewSet):
             )
 
         self.perform_destroy(instance)
+
         safe_delete_pattern(f"user_projects_{user.id}")
         safe_delete_pattern(f"issues_user_{user.id}_project_*")
+        safe_delete_pattern(f"issues_project_{project_id}")
 
         return Response(
             {
